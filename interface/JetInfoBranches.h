@@ -16,6 +16,15 @@ class JetInfoBranches {
 
     int   nJet;
     float Jet_pt[nMaxJets_];
+    float tau1_deltaR[nMaxJets_];
+    float tau2_deltaR[nMaxJets_];
+    float tau2_EnergyRatio[nMaxJets_];
+    float tau1_EnergyRatio[nMaxJets_];
+    float tau1_mass[nMaxJets_];
+    float tau2_mass[nMaxJets_];	
+    float tau1_mass_corrected[nMaxJets_];
+    float tau2_mass_corrected[nMaxJets_];	
+    float Track_distance_TwoHighest3DSig[nMaxJets_];
     float Jet_genpt[nMaxJets_];
     float Jet_residual[nMaxJets_];
     float Jet_jes[nMaxJets_];
@@ -208,12 +217,21 @@ class JetInfoBranches {
     float SV_vtxDistJetAxis[nMaxSVs_];
     int   SV_nTrk[nMaxSVs_];
     float SV_mass[nMaxSVs_];
+    float SV_massVertexEnergyFraction[nMaxSVs_];
+    float SV_vertexBoostOverSqrtJetPt[nMaxSVs_];	
+    float SV_mass_corrected[nMaxSVs_];	
+    float SV_mass_corrected_tighter[nMaxSVs_];
     float SV_vtx_eta[nMaxSVs_];
     float SV_vtx_phi[nMaxSVs_];
     float SV_EnergyRatio[nMaxSVs_];
     float SV_dir_x[nMaxSVs_];
     float SV_dir_y[nMaxSVs_];
     float SV_dir_z[nMaxSVs_];
+    float SV_massVertexEnergyFraction_tighter[nMaxSVs_];
+    float SV_EnergyRatio_tighter[nMaxSVs_]; 	
+    float SV_EnergyRatio_pseudo[nMaxSVs_];
+    float SV_vertexBoostOverSqrtJetPt_tighter[nMaxSVs_];
+	
 
     // TagInfo TaggingVariables
     // per jet
@@ -382,12 +400,20 @@ class JetInfoBranches {
       tree->Branch((name+"SV_vtxDistJetAxis").c_str()  ,SV_vtxDistJetAxis  ,(name+"SV_vtxDistJetAxis ["+name+"nSV]/F").c_str());
       tree->Branch((name+"SV_nTrk").c_str()            ,SV_nTrk            ,(name+"SV_nTrk["+name+"nSV]/I").c_str());
       tree->Branch((name+"SV_mass").c_str()            ,SV_mass            ,(name+"SV_mass["+name+"nSV]/F").c_str());
+      tree->Branch((name+"SV_mass_corrected").c_str()            ,SV_mass_corrected            ,(name+"SV_mass_corrected["+name+"nSV]/F").c_str());
       tree->Branch((name+"SV_vtx_eta").c_str()         ,SV_vtx_eta         ,(name+"SV_vtx_eta["+name+"nSV]/F").c_str());
       tree->Branch((name+"SV_vtx_phi").c_str()         ,SV_vtx_phi         ,(name+"SV_vtx_phi["+name+"nSV]/F").c_str());
-      tree->Branch((name+"SV_EnergyRatio").c_str()     ,SV_EnergyRatio     ,(name+"SV_EnergyRatio ["+name+"nSV]/F").c_str());
-      tree->Branch((name+"SV_dir_x").c_str()           ,SV_dir_x           ,(name+"SV_dir_x ["+name+"nSV]/F").c_str());
-      tree->Branch((name+"SV_dir_y").c_str()           ,SV_dir_y           ,(name+"SV_dir_y ["+name+"nSV]/F").c_str());
-      tree->Branch((name+"SV_dir_z").c_str()           ,SV_dir_z           ,(name+"SV_dir_z ["+name+"nSV]/F").c_str());
+      tree->Branch((name+"SV_EnergyRatio").c_str()     ,SV_EnergyRatio     ,(name+"SV_EnergyRatio["+name+"nSV]/F").c_str());
+      tree->Branch((name+"SV_dir_x").c_str()           ,SV_dir_x           ,(name+"SV_dir_x["+name+"nSV]/F").c_str());
+      tree->Branch((name+"SV_dir_y").c_str()           ,SV_dir_y           ,(name+"SV_dir_y["+name+"nSV]/F").c_str());
+      tree->Branch((name+"SV_dir_z").c_str()           ,SV_dir_z           ,(name+"SV_dir_z["+name+"nSV]/F").c_str());
+      tree->Branch((name+"SV_massVertexEnergyFraction").c_str()           ,SV_massVertexEnergyFraction,(name+"SV_massVertexEnergyFraction["+name+"nSV]/F").c_str());
+      tree->Branch((name+"SV_vertexBoostOverSqrtJetPt").c_str()           ,SV_vertexBoostOverSqrtJetPt,(name+"SV_vertexBoostOverSqrtJetPt["+name+"nSV]/F").c_str());	
+      tree->Branch((name+"SV_massVertexEnergyFraction_tighter").c_str()           ,SV_massVertexEnergyFraction_tighter,(name+"SV_massVertexEnergyFraction_tighter["+name+"nSV]/F").c_str());
+      tree->Branch((name+"SV_vertexBoostOverSqrtJetPt_tighter").c_str()           ,SV_vertexBoostOverSqrtJetPt_tighter,(name+"SV_vertexBoostOverSqrtJetPt_tighter["+name+"nSV]/F").c_str());
+      tree->Branch((name+"SV_mass_corrected_tighter").c_str()            ,SV_mass_corrected_tighter            ,(name+"SV_mass_corrected_tighter["+name+"nSV]/F").c_str());	
+      tree->Branch((name+"SV_EnergyRatio_tighter").c_str()     ,SV_EnergyRatio_tighter     ,(name+"SV_EnergyRatio_tighter["+name+"nSV]/F").c_str());
+      tree->Branch((name+"SV_EnergyRatio_pseudo").c_str()     ,SV_EnergyRatio_pseudo     ,(name+"SV_EnergyRatio_pseudo["+name+"nSV]/F").c_str());
     }
 
     void RegisterJetPFLeptonTree(TTree *tree, std::string name="") {
@@ -730,12 +756,21 @@ class JetInfoBranches {
       tree->SetBranchAddress((name+"SV_vtxDistJetAxis").c_str()  ,SV_vtxDistJetAxis  ) ;
       tree->SetBranchAddress((name+"SV_nTrk").c_str()            ,SV_nTrk            ) ;
       tree->SetBranchAddress((name+"SV_mass").c_str()            ,SV_mass            ) ;
+      tree->SetBranchAddress((name+"SV_massVertexEnergyFraction").c_str()            ,SV_massVertexEnergyFraction            ) ;
+      tree->SetBranchAddress((name+"SV_vertexBoostOverSqrtJetPt").c_str()            ,SV_vertexBoostOverSqrtJetPt            ) ;
+      tree->SetBranchAddress((name+"SV_mass_corrected").c_str()            ,SV_mass_corrected            ) ;
       tree->SetBranchAddress((name+"SV_vtx_eta").c_str()         ,SV_vtx_eta         ) ;
       tree->SetBranchAddress((name+"SV_vtx_phi").c_str()         ,SV_vtx_phi         ) ;
       tree->SetBranchAddress((name+"SV_EnergyRatio").c_str()     ,SV_EnergyRatio     ) ;
       tree->SetBranchAddress((name+"SV_dir_x").c_str()           ,SV_dir_x           ) ;
       tree->SetBranchAddress((name+"SV_dir_y").c_str()           ,SV_dir_y           ) ;
       tree->SetBranchAddress((name+"SV_dir_z").c_str()           ,SV_dir_z           ) ;
+      tree->SetBranchAddress((name+"SV_massVertexEnergyFraction_tighter").c_str()            ,SV_massVertexEnergyFraction_tighter            ) ;
+      tree->SetBranchAddress((name+"SV_vertexBoostOverSqrtJetPt_tighter").c_str()            ,SV_vertexBoostOverSqrtJetPt_tighter            ) ;
+      tree->SetBranchAddress((name+"SV_mass_corrected_tighter").c_str()            ,SV_mass_corrected_tighter            ) ;
+      tree->SetBranchAddress((name+"SV_EnergyRatio_tighter").c_str()     ,SV_EnergyRatio_tighter     ) ;
+      tree->SetBranchAddress((name+"SV_EnergyRatio_pseudo").c_str()     ,SV_EnergyRatio_pseudo     ) ;
+
     }
 
     void ReadJetPFLeptonTree(TTree *tree, std::string name="") {
