@@ -22,6 +22,7 @@ Implementation:
 
 // user include files
 #include "FWCore/Common/interface/Provenance.h"
+#include "TrackingTools/PatternTools/interface/TwoTrackMinimumDistance.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/EDAnalyzer.h"
 #include "FWCore/Framework/interface/Event.h"
@@ -31,7 +32,7 @@ Implementation:
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "FWCore/Utilities/interface/RegexMatch.h"
-
+#include "DataFormats/BTauReco/interface/ParticleMasses.h"
 #include "DataFormats/Candidate/interface/VertexCompositePtrCandidate.h"
 #include "DataFormats/Common/interface/RefToPtr.h"
 #include "DataFormats/Common/interface/TriggerResults.h"
@@ -52,13 +53,15 @@ Implementation:
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
-
+#include "RecoBTag/SecondaryVertex/interface/TrackSelector.h"
 #include "SimDataFormats/GeneratorProducts/interface/GenEventInfoProduct.h"
 #include "SimDataFormats/PileupSummaryInfo/interface/PileupSummaryInfo.h"
 
 #include "CommonTools/UtilAlgos/interface/TFileService.h"
 #include "CommonTools/Utils/interface/TMVAEvaluator.h"
 
+
+#include "RecoBTag/SecondaryVertex/interface/TrackSorting.h"
 #include "PhysicsTools/SelectorUtils/interface/PFJetIDSelectionFunctor.h"
 
 #include "RecoBTau/JetTagComputer/interface/GenericMVAJetTagComputer.h"
@@ -67,6 +70,7 @@ Implementation:
 #include "RecoBTau/JetTagComputer/interface/JetTagComputerRecord.h"
 #include "RecoBTag/SecondaryVertex/interface/TrackKinematics.h"
 #include "RecoBTag/SecondaryVertex/interface/V0Filter.h"
+#include "RecoBTag/SecondaryVertex/interface/SecondaryVertex.h"
 #include "RecoVertex/VertexPrimitives/interface/ConvertToFromReco.h"
 
 #include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
@@ -83,6 +87,8 @@ Implementation:
 #include "RecoBTag/BTagAnalyzerLite/interface/JetInfoBranches.h"
 #include "RecoBTag/BTagAnalyzerLite/interface/EventInfoBranches.h"
 
+
+using namespace reco;
 //
 // constants, enums and typedefs
 //
@@ -148,7 +154,7 @@ class BTagAnalyzerLiteT : public edm::EDAnalyzer
 
     void setTracksSV(const TrackRef & trackRef, const SVTagInfo *, int & isFromSV, int & iSV, float & SVweight);
 
-    void vertexKinematicsAndChange(const Vertex & vertex, reco::TrackKinematics & vertexKinematics, Int_t & charge);
+    void vertexKinematicsAndChange(const Vertex & vertex, reco::TrackKinematics & vertexKinematics, Int_t & charge, Double_t & vtx_track_ptSum, Double_t & vtx_track_ESum);
 
     bool NameCompatible(const std::string& pattern, const std::string& name);
 
@@ -180,6 +186,7 @@ class BTagAnalyzerLiteT : public edm::EDAnalyzer
     bool storeTagVariablesSubJets_;
     bool storeCSVTagVariables_;
     bool storeCSVTagVariablesSubJets_;
+	
 
     edm::InputTag src_;  // Generator/handronizer module label
     edm::InputTag muonCollectionName_;
@@ -290,9 +297,15 @@ class BTagAnalyzerLiteT : public edm::EDAnalyzer
     std::unique_ptr<TMVAEvaluator> evaluator_SL_;
     std::unique_ptr<TMVAEvaluator> evaluator_cascade_;
     std::unique_ptr<TMVAEvaluator> evaluator_all_;
+  
+    reco::TrackSelector                 trackSelector;
+//    reco::TrackSelector                 trackPseudoSelector;
+
 
     // track V0 filter
     reco::V0Filter trackPairV0Filter;
+    reco::btag::SortCriteria        sortCriterium;
+    
 };
 
 
@@ -308,7 +321,10 @@ BTagAnalyzerLiteT<IPTI,VTX>::BTagAnalyzerLiteT(const edm::ParameterSet& iConfig)
   R0_(iConfig.getParameter<double>("R0")),
   njettiness_(fastjet::contrib::OnePass_KT_Axes(), fastjet::contrib::NormalizedMeasure(beta_,R0_)),
   maxSVDeltaRToJet_(iConfig.getParameter<double>("maxSVDeltaRToJet")),
-  trackPairV0Filter(iConfig.getParameter<edm::ParameterSet>("trackPairV0Filter"))
+  trackSelector(iConfig.getParameter<edm::ParameterSet>("trackSelection")),
+  //trackPseudoSelector(iConfig.getParameter<edm::ParameterSet>("trackPseudoSelection")),
+  trackPairV0Filter(iConfig.getParameter<edm::ParameterSet>("trackPairV0Filter")),
+  sortCriterium(TrackSorting::getCriterium(iConfig.getParameter<std::string>("trackSort")))
 {
   //now do what ever initialization you need
   std::string module_type  = iConfig.getParameter<std::string>("@module_type");
@@ -340,6 +356,7 @@ BTagAnalyzerLiteT<IPTI,VTX>::BTagAnalyzerLiteT(const edm::ParameterSet& iConfig)
   JetCollectionTag_ = iConfig.getParameter<edm::InputTag>("Jets");
   SubJetCollectionTags_ = iConfig.getParameter<std::vector<edm::InputTag> >("SubJets");
   SubJetLabels_         = iConfig.getParameter<std::vector<std::string> >("SubJetLabels");
+
 
   if ( runFatJets_ )
     {
@@ -960,23 +977,49 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
       }
     }
     reco::TrackKinematics allKinematics;
+    reco::TrackKinematics allKinematics_tighter;
+    double jet_track_ESum= 0.; 	
+    reco::TrackKinematics vertexKinematics_tighter;
+    double vtx_track_ptSum_tighter = 0.;
+    double vtx_track_ESum_tighter  = 0.;
 
 
     if ( produceJetTrackTree_ )
     {
       const Tracks & selectedTracks( ipTagInfo->selectedTracks() );
+      const std::vector<reco::btag::TrackIPData> &ipData = ipTagInfo->impactParameterData();	
+      std::vector<std::size_t> indices = ipTagInfo->sortedIndexes(sortCriterium) 	;
+
+
+      const TrackRef ptrackRef_0 = selectedTracks[indices[0]];
+      const TrackRef ptrackRef_1 = selectedTracks[indices[1]];
+      const reco::Track * ptrackPtr_0 = reco::btag::toTrack(ptrackRef_0);
+      const reco::Track * ptrackPtr_1 = reco::btag::toTrack(ptrackRef_1);	
+      const reco::Track & ptrack_0 = *ptrackPtr_0;
+      const reco::Track & ptrack_1 = *ptrackPtr_1;	
+      reco::TransientTrack transientTrack_0 = trackBuilder->build(ptrack_0);	
+      reco::TransientTrack transientTrack_1 = trackBuilder->build(ptrack_1);	
+      TwoTrackMinimumDistance dist;
+      if ( dist.calculate( transientTrack_0.impactPointState(), transientTrack_1.impactPointState()) ) {
+		JetInfo[iJetColl].Track_distance_TwoHighest3DSig[JetInfo[iJetColl].nJet]  = dist.distance();
+		}
+	
+
 
       JetInfo[iJetColl].Jet_ntracks[JetInfo[iJetColl].nJet] = selectedTracks.size();
 
       JetInfo[iJetColl].Jet_nFirstTrack[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nTrack;
 
       unsigned int trackSize = selectedTracks.size();
+	
 
       for (unsigned int itt=0; itt < trackSize; ++itt)
       {
         const TrackRef ptrackRef = selectedTracks[itt];
         const reco::Track * ptrackPtr = reco::btag::toTrack(ptrackRef);
+        const reco::btag::TrackIPData &data = ipData[itt];
         const reco::Track & ptrack = *ptrackPtr;
+        jet_track_ESum += std::sqrt(ptrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus)); 
 
         //--------------------------------
         float decayLength = (ipTagInfo->impactParameterData()[itt].closestToJetAxis - RecoVertex::convertPos(pv->position())).mag();
@@ -1040,7 +1083,12 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
                     JetInfo[iJetColl].Track_PVweight[JetInfo[iJetColl].nTrack]);
 
         if(JetInfo[iJetColl].Track_PV[JetInfo[iJetColl].nTrack]==0 &&
-           JetInfo[iJetColl].Track_PVweight[JetInfo[iJetColl].nTrack]>0) { allKinematics.add(ptrack, JetInfo[iJetColl].Track_PVweight[JetInfo[iJetColl].nTrack]); }
+           JetInfo[iJetColl].Track_PVweight[JetInfo[iJetColl].nTrack]>0) { 
+		allKinematics.add(ptrack, JetInfo[iJetColl].Track_PVweight[JetInfo[iJetColl].nTrack]); 
+		}
+
+	
+
 
         if( pjet->hasTagInfo(svTagInfos_.c_str()) )
         {
@@ -1078,6 +1126,11 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
           }
         }
 
+	GlobalPoint pvv(pv->x(),pv->y(),pv->z());
+        edm::RefToBase<Jet> jet = ipTagInfo->jet();
+
+
+
         // compute decay length and distance to tau axis
         if ( runFatJets_ && iJetColl == 0 )
         {
@@ -1105,7 +1158,21 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 
           JetInfo[iJetColl].Track_distTau[JetInfo[iJetColl].nTrack]   = distTauAxis;
           JetInfo[iJetColl].Track_lengthTau[JetInfo[iJetColl].nTrack] = decayLengthTau;
+          if (trackSelector(ptrack, data, *jet, pvv) && distTauAxis <0.3)  allKinematics_tighter.add(ptrack);
+          if(trackSelector(ptrack, data, *jet, pvv) && distTauAxis<0.3) {
+                vertexKinematics_tighter.add(ptrack);
+                if(JetInfo[iJetColl].Track_isfromV0[JetInfo[iJetColl].nTrack] == 1){
+                vtx_track_ptSum_tighter += std::sqrt(ptrack.momentum().Perp2());
+                vtx_track_ESum_tighter  += std::sqrt(ptrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus));
+                }
         }
+
+	
+
+
+	}
+
+
 
         ++JetInfo[iJetColl].nTrack;
       } //// end loop on tracks
@@ -1570,6 +1637,9 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 
     // if secondary vertices present
     std::map<double, size_t> VTXmap;
+    reco::TrackKinematics tau1Kinematics;
+    reco::TrackKinematics tau2Kinematics;
+
     for (size_t vtx = 0; vtx < (size_t)JetInfo[iJetColl].Jet_SV_multi[JetInfo[iJetColl].nJet]; ++vtx)
     {
 
@@ -1586,11 +1656,14 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
       JetInfo[iJetColl].SV_flightErr[JetInfo[iJetColl].nSV]   = svTagInfo->flightDistance(vtx).error();
       JetInfo[iJetColl].SV_flight2D[JetInfo[iJetColl].nSV]    = svTagInfo->flightDistance(vtx, true).value();
       JetInfo[iJetColl].SV_flight2DErr[JetInfo[iJetColl].nSV] = svTagInfo->flightDistance(vtx, true).error();
+
+
+
+
       JetInfo[iJetColl].SV_nTrk[JetInfo[iJetColl].nSV]        = nTracks(svTagInfo->secondaryVertex(vtx));
 
 
       const Vertex &vertex = svTagInfo->secondaryVertex(vtx);
-
       JetInfo[iJetColl].SV_vtx_pt[JetInfo[iJetColl].nSV]  = vertex.p4().pt();
       JetInfo[iJetColl].SV_vtx_eta[JetInfo[iJetColl].nSV] = vertex.p4().eta();
       JetInfo[iJetColl].SV_vtx_phi[JetInfo[iJetColl].nSV] = vertex.p4().phi();
@@ -1598,17 +1671,42 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 
       Int_t totcharge=0;
       reco::TrackKinematics vertexKinematics;
+      double vtx_track_ptSum = 0.;
+      double vtx_track_ESum  = 0.;	
+      
 
       // get the vertex kinematics and charge
-      vertexKinematicsAndChange(vertex, vertexKinematics, totcharge);
+      vertexKinematicsAndChange(vertex, vertexKinematics, totcharge, vtx_track_ptSum, vtx_track_ESum);
+
+      if (currentAxes.size() > 1)
+          {
+            if (reco::deltaR2(svTagInfo->flightDirection(vtx),currentAxes[1]) < reco::deltaR2(svTagInfo->flightDirection(vtx),currentAxes[0])){
+		tau2Kinematics  = tau2Kinematics + vertexKinematics;		
+		JetInfo[iJetColl].tau2_deltaR[JetInfo[iJetColl].nSV]    = reco::deltaR(svTagInfo->flightDirection(vtx),currentAxes[1]) ;
+		}
+            else{
+		tau1Kinematics = tau1Kinematics + vertexKinematics;
+		JetInfo[iJetColl].tau1_deltaR[JetInfo[iJetColl].nSV]    = reco::deltaR(svTagInfo->flightDirection(vtx),currentAxes[0]) ;
+		}
+	
+          }
+       else if (currentAxes.size() > 0){
+		tau1Kinematics = tau1Kinematics + vertexKinematics;
+		JetInfo[iJetColl].tau1_deltaR[JetInfo[iJetColl].nSV]    = reco::deltaR(svTagInfo->flightDirection(vtx),currentAxes[0]) ;
+		}
 
       // total charge at the secondary vertex
       JetInfo[iJetColl].SV_totCharge[JetInfo[iJetColl].nSV]=totcharge;
 
       math::XYZTLorentzVector vertexSum = vertexKinematics.weightedVectorSum();
+      math::XYZTLorentzVector vertexSum_tighter = vertexKinematics_tighter.weightedVectorSum(); 
       edm::RefToBase<reco::Jet> jet = ipTagInfo->jet();
       math::XYZVector jetDir = jet->momentum().Unit();
       GlobalVector flightDir = svTagInfo->flightDirection(vtx);
+
+
+
+       	
 
       JetInfo[iJetColl].SV_deltaR_jet[JetInfo[iJetColl].nSV]     = ( reco::deltaR(flightDir, jetDir) );
       JetInfo[iJetColl].SV_deltaR_sum_jet[JetInfo[iJetColl].nSV] = ( reco::deltaR(vertexSum, jetDir) );
@@ -1626,6 +1724,42 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 
       math::XYZTLorentzVector allSum =  allKinematics.weightedVectorSum() ; //allKinematics.vectorSum()
       JetInfo[iJetColl].SV_EnergyRatio[JetInfo[iJetColl].nSV] = vertexSum.E() / allSum.E();
+      math::XYZTLorentzVector allSum_tighter =  allKinematics_tighter.weightedVectorSum() ; //allKinematics.vectorSum()
+      JetInfo[iJetColl].SV_EnergyRatio_pseudo[JetInfo[iJetColl].nSV] = vertexSum_tighter.E() / allSum.E();
+      JetInfo[iJetColl].SV_EnergyRatio_tighter[JetInfo[iJetColl].nSV] = vertexSum.E() / allSum_tighter.E();
+	
+
+      double vertexMass = vertexSum.M();
+      double vertexPt2 = math::XYZVector(flightDir.x(), flightDir.y(), flightDir.z()).Cross(vertexSum).Mag2() / flightDir.mag2();
+      vertexMass = std::sqrt(vertexMass * vertexMass + vertexPt2) + std::sqrt(vertexPt2);
+
+
+      JetInfo[iJetColl].SV_mass_corrected[JetInfo[iJetColl].nSV]    = vertexMass;
+
+      	
+
+
+      double vertexMass_tighter = vertexSum_tighter.M();
+      double vertexPt2_tighter = math::XYZVector(flightDir.x(), flightDir.y(), flightDir.z()).Cross(vertexSum_tighter).Mag2() / flightDir.mag2();
+      vertexMass_tighter = std::sqrt(vertexMass_tighter * vertexMass_tighter + vertexPt2_tighter) + std::sqrt(vertexPt2_tighter);
+
+
+      JetInfo[iJetColl].SV_mass_corrected_tighter[JetInfo[iJetColl].nSV]    = vertexMass_tighter;
+      std::cout<< vertexMass_tighter <<std::endl;	
+
+      double varPi = (vertexMass/5.2794) * (vtx_track_ESum /jet_track_ESum); // 5.2794 should be the average B meson mass of PDG! CHECK!!!
+      JetInfo[iJetColl].SV_massVertexEnergyFraction[JetInfo[iJetColl].nSV]    =  varPi;
+      double varB  = (std::sqrt(5.2794) * vtx_track_ptSum) / ( vertexMass * std::sqrt(jet->pt()));
+      JetInfo[iJetColl].SV_vertexBoostOverSqrtJetPt[JetInfo[iJetColl].nSV]    =  varB*varB/(varB*varB + 10.); 
+
+      double varPi_tighter = (vertexMass_tighter/5.2794) * (vtx_track_ESum_tighter /jet_track_ESum); // 5.2794 should be the average B meson mass of PDG! CHECK!!!
+      JetInfo[iJetColl].SV_massVertexEnergyFraction_tighter[JetInfo[iJetColl].nSV]    =  varPi_tighter;
+      double varB_tighter  = (std::sqrt(5.2794) * vtx_track_ptSum_tighter) / ( vertexMass_tighter * std::sqrt(jet->pt()));
+      JetInfo[iJetColl].SV_vertexBoostOverSqrtJetPt_tighter[JetInfo[iJetColl].nSV]    =  varB_tighter*varB_tighter/(varB_tighter*varB_tighter + 10.);
+	
+
+      
+      
 
       JetInfo[iJetColl].SV_dir_x[JetInfo[iJetColl].nSV]= flightDir.x();
       JetInfo[iJetColl].SV_dir_y[JetInfo[iJetColl].nSV]= flightDir.y();
@@ -1638,6 +1772,29 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 
     } //// if secondary vertices present
     JetInfo[iJetColl].Jet_nLastSV[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nSV;
+    math::XYZTLorentzVector vertexSum_tau1 = tau1Kinematics.weightedVectorSum();
+    math::XYZTLorentzVector vertexSum_tau2 = tau2Kinematics.weightedVectorSum();
+
+    JetInfo[iJetColl].tau1_EnergyRatio[JetInfo[iJetColl].nJet] = vertexSum_tau1.E() / ( allKinematics.weightedVectorSum()).E();
+    JetInfo[iJetColl].tau2_EnergyRatio[JetInfo[iJetColl].nJet] = vertexSum_tau2.E() / ( allKinematics.weightedVectorSum()).E();
+
+
+    double vertexMass_tau1 = vertexSum_tau1.M();
+    JetInfo[iJetColl].tau1_mass[JetInfo[iJetColl].nJet]    = vertexMass_tau1;
+    double vertexPt2_tau1 = math::XYZVector(currentAxes[0].px(), currentAxes[0].py(), currentAxes[0].pz()).Cross(vertexSum_tau1).Mag2() / currentAxes[0].modp2();
+    vertexMass_tau1 = std::sqrt(vertexMass_tau1 * vertexMass_tau1 + vertexPt2_tau1) + std::sqrt(vertexPt2_tau1);
+    double vertexMass_tau2 = vertexSum_tau2.M();
+    JetInfo[iJetColl].tau2_mass[JetInfo[iJetColl].nJet]    = vertexMass_tau2;
+    double vertexPt2_tau2 = math::XYZVector(currentAxes[1].px(), currentAxes[1].py(), currentAxes[1].pz()).Cross(vertexSum_tau2).Mag2() / currentAxes[1].modp2();
+    vertexMass_tau2 = std::sqrt(vertexMass_tau2 * vertexMass_tau2 + vertexPt2_tau2) + std::sqrt(vertexPt2_tau2);
+
+
+
+    JetInfo[iJetColl].tau1_mass_corrected[JetInfo[iJetColl].nJet]    = vertexMass_tau1;
+    JetInfo[iJetColl].tau2_mass_corrected[JetInfo[iJetColl].nJet]    = vertexMass_tau2;
+
+
+
 
     float z_ratio = -3. , tau_dot = 0., SV_mass_0 = -3., SV_EnergyRatio_0 = -3., SV_EnergyRatio_1 = -3.;
     float BDTG_SV = -1., BDTG_SL = -1., BDTG_Cascade = -1.; float BDTG_All = -1;
@@ -2023,7 +2180,7 @@ void BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::s
 
 // -------------- vertexKinematicsAndChange ----------------
 template<>
-void BTagAnalyzerLiteT<reco::TrackIPTagInfo,reco::Vertex>::vertexKinematicsAndChange(const Vertex & vertex, reco::TrackKinematics & vertexKinematics, Int_t & charge)
+void BTagAnalyzerLiteT<reco::TrackIPTagInfo,reco::Vertex>::vertexKinematicsAndChange(const Vertex & vertex, reco::TrackKinematics & vertexKinematics, Int_t & charge, Double_t & vtx_track_ptSum, Double_t & vtx_track_ESum)
 {
   Bool_t hasRefittedTracks = vertex.hasRefittedTracks();
 
@@ -2036,17 +2193,21 @@ void BTagAnalyzerLiteT<reco::TrackIPTagInfo,reco::Vertex>::vertexKinematicsAndCh
       reco::Track actualTrack = vertex.refittedTrack(*track);
       vertexKinematics.add(actualTrack, w);
       charge+=actualTrack.charge();
+      vtx_track_ptSum += std::sqrt(actualTrack.momentum().Perp2());
+      vtx_track_ESum  += std::sqrt(actualTrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus));
     }
     else {
       const reco::Track& mytrack = **track;
       vertexKinematics.add(mytrack, w);
       charge+=mytrack.charge();
+      vtx_track_ptSum += std::sqrt(mytrack.momentum().Perp2());
+      vtx_track_ESum  += std::sqrt(mytrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus));
     }
   }
 }
 
 template<>
-void BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::vertexKinematicsAndChange(const Vertex & vertex, reco::TrackKinematics & vertexKinematics, Int_t & charge)
+void BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::vertexKinematicsAndChange(const Vertex & vertex, reco::TrackKinematics & vertexKinematics, Int_t & charge, Double_t & vtx_track_ptSum, Double_t & vtx_track_ESum)
 {
   const std::vector<reco::CandidatePtr> & tracks = vertex.daughterPtrVector();
 
@@ -2054,6 +2215,9 @@ void BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::v
     const reco::Track& mytrack = *(*track)->bestTrack();
     vertexKinematics.add(mytrack, 1.0);
     charge+=mytrack.charge();
+    vtx_track_ptSum += std::sqrt(mytrack.momentum().Perp2());
+    vtx_track_ESum  += std::sqrt(mytrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus));
+
   }
 }
 
