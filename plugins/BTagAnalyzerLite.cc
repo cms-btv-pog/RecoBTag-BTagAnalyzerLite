@@ -1680,7 +1680,7 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
       vertexKinematicsAndChange(vertex, vertexKinematics, totcharge, vtx_track_ptSum, vtx_track_ESum);
       JetInfo[iJetColl].tau2_vertexDeltaR[JetInfo[iJetColl].nSV]    = -3;
       JetInfo[iJetColl].tau1_vertexDeltaR[JetInfo[iJetColl].nSV]    = -3;		 
-      if (currentAxes.size() > 1)
+      /*if (currentAxes.size() > 1)
           {
             if (reco::deltaR2(svTagInfo->flightDirection(vtx),currentAxes[1]) < reco::deltaR2(svTagInfo->flightDirection(vtx),currentAxes[0])){
 		tau2Kinematics  = tau2Kinematics + vertexKinematics;		
@@ -1696,7 +1696,7 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 		tau1Kinematics = tau1Kinematics + vertexKinematics;
 		if(JetInfo[iJetColl].tau2_vertexDeltaR[JetInfo[iJetColl].nSV]    <0) JetInfo[iJetColl].tau1_vertexDeltaR[JetInfo[iJetColl].nSV]    = reco::deltaR(svTagInfo->flightDirection(vtx),currentAxes[0]) ;
 		}
-
+*/
       // total charge at the secondary vertex
       JetInfo[iJetColl].SV_totCharge[JetInfo[iJetColl].nSV]=totcharge;
 
@@ -1776,7 +1776,7 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
     JetInfo[iJetColl].Jet_nLastSV[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nSV;
     math::XYZTLorentzVector vertexSum_tau1 = tau1Kinematics.weightedVectorSum();
     math::XYZTLorentzVector vertexSum_tau2 = tau2Kinematics.weightedVectorSum();
-
+    math::XYZTLorentzVector allSum =  allKinematics.weightedVectorSum() ; 
     JetInfo[iJetColl].tau1_vertexEnergyRatio[JetInfo[iJetColl].nJet] = vertexSum_tau1.E() / allSum.E();
     JetInfo[iJetColl].tau2_vertexEnergyRatio[JetInfo[iJetColl].nJet] = vertexSum_tau2.E() / allSum.E();
 
