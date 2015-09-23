@@ -16,14 +16,14 @@ class JetInfoBranches {
 
     int   nJet;
     float Jet_pt[nMaxJets_];
-    float tau1_deltaR[nMaxJets_];
-    float tau2_deltaR[nMaxJets_];
-    float tau2_EnergyRatio[nMaxJets_];
-    float tau1_EnergyRatio[nMaxJets_];
-    float tau1_mass[nMaxJets_];
-    float tau2_mass[nMaxJets_];	
-    float tau1_mass_corrected[nMaxJets_];
-    float tau2_mass_corrected[nMaxJets_];	
+    float tau1_vertexDeltaR[nMaxJets_];
+    float tau2_vertexDeltaR[nMaxJets_];
+    float tau2_vertexEnergyRatio[nMaxJets_];
+    float tau1_vertexEnergyRatio[nMaxJets_];
+    float tau1_vertexMass[nMaxJets_];
+    float tau2_vertexMass[nMaxJets_];	
+    float tau1_vertexMass_corrected[nMaxJets_];
+    float tau2_vertexMass_corrected[nMaxJets_];	
     float Track_distance_TwoHighest3DSig[nMaxJets_];
     float Jet_genpt[nMaxJets_];
     float Jet_residual[nMaxJets_];
@@ -372,6 +372,16 @@ class JetInfoBranches {
 
       tree->Branch((name+"Jet_looseID").c_str(),      Jet_looseID  ,(name+"Jet_looseID["+name+"nJet]/I").c_str());
       tree->Branch((name+"Jet_tightID").c_str(),      Jet_tightID  ,(name+"Jet_tightID["+name+"nJet]/I").c_str());
+      tree->Branch((name+"tau1_vertexDeltaR").c_str()  ,tau1_vertexDeltaR,(name+"tau1_vertexDeltaR["+name+"nJet]/F").c_str());
+      tree->Branch((name+"tau2_vertexDeltaR").c_str()  ,tau2_vertexDeltaR ,(name+"tau2_vertexDeltaR["+name+"nJet]/F").c_str());
+      tree->Branch((name+"tau1_vertexEnergyRatio").c_str(),      tau1_vertexEnergyRatio ,(name+"tau1_vertexEnergyRatio["+name+"nJet]/F").c_str());
+      tree->Branch((name+"tau2_vertexEnergyRatio").c_str(),      tau2_vertexEnergyRatio ,(name+"tau2_vertexEnergyRatio["+name+"nJet]/F").c_str());
+      tree->Branch((name+"tau1_vertexMass").c_str(),      tau1_vertexMass ,(name+"tau1_vertexMass["+name+"nJet]/F").c_str());
+      tree->Branch((name+"tau2_vertexMass").c_str(),      tau2_vertexMass ,(name+"tau2_vertexMass["+name+"nJet]/F").c_str());
+      tree->Branch((name+"tau1_vertexMass_corrected").c_str(),      tau1_vertexMass_corrected ,(name+"tau1_vertexMass_corrected["+name+"nJet]/F").c_str());
+      tree->Branch((name+"tau2_vertexMass_corrected").c_str(),      tau2_vertexMass_corrected , (name+"tau2_vertexMass_corrected["+name+"nJet]/F").c_str());
+      tree->Branch((name+"Track_distance_TwoHighest3DSig").c_str(),   Track_distance_TwoHighest3DSig, (name+"Track_distance_TwoHighest3DSig["+name+"nJet]/F").c_str());
+
 
       //--------------------------------------
       // secondary vertex information
@@ -509,6 +519,7 @@ class JetInfoBranches {
       tree->Branch((name+"Track_SVweight").c_str()   ,Track_SVweight   ,(name+"Track_SVweight["+name+"nTrack]/F").c_str());
       tree->Branch((name+"Track_isfromSV").c_str()   ,Track_isfromSV   ,(name+"Track_isfromSV["+name+"nTrack]/I").c_str());
       tree->Branch((name+"Track_isfromV0").c_str()   ,Track_isfromV0   ,(name+"Track_isfromV0["+name+"nTrack]/I").c_str());
+	
     }
 
     void RegisterTagVarTree(TTree *tree, std::string name=""){
@@ -866,6 +877,16 @@ class JetInfoBranches {
       tree->SetBranchAddress((name+"Track_SVweight").c_str()  ,Track_SVweight ) ;
       tree->SetBranchAddress((name+"Track_isfromSV").c_str()  ,Track_isfromSV ) ;
       tree->SetBranchAddress((name+"Track_isfromV0").c_str()  ,Track_isfromV0 ) ;
+      tree->SetBranchAddress((name+"tau1_vertexDeltaR").c_str()  ,tau1_vertexDeltaR);
+      tree->SetBranchAddress((name+"tau2_vertexDeltaR").c_str()  ,tau2_vertexDeltaR);
+      tree->SetBranchAddress((name+"tau1_vertexEnergyRatio").c_str(),      tau1_vertexEnergyRatio);
+      tree->SetBranchAddress((name+"tau2_vertexEnergyRatio").c_str(),      tau2_vertexEnergyRatio);
+      tree->SetBranchAddress((name+"tau1_vertexMass").c_str(),      tau1_vertexMass);
+      tree->SetBranchAddress((name+"tau2_vertexMass").c_str(),      tau2_vertexMass);
+      tree->SetBranchAddress((name+"tau1_vertexMass_corrected").c_str(),      tau1_vertexMass_corrected);
+      tree->SetBranchAddress((name+"tau2_vertexMass_corrected").c_str(),      tau2_vertexMass_corrected);
+      tree->SetBranchAddress((name+"Track_distance_TwoHighest3DSig").c_str(),   Track_distance_TwoHighest3DSig);
+
     }
 
     void ReadTagVarTree(TTree *tree, std::string name=""){
