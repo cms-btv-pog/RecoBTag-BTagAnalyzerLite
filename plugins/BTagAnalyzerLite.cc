@@ -990,7 +990,8 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
       const std::vector<reco::btag::TrackIPData> &ipData = ipTagInfo->impactParameterData();	
       std::vector<std::size_t> indices = ipTagInfo->sortedIndexes(sortCriterium) 	;
 
-
+      JetInfo[iJetColl].Track_distance_TwoHighest3DSig[JetInfo[iJetColl].nJet]  = 	-3;
+      if(indices.size()>1){	
       const TrackRef ptrackRef_0 = selectedTracks[indices[0]];
       const TrackRef ptrackRef_1 = selectedTracks[indices[1]];
       const reco::Track * ptrackPtr_0 = reco::btag::toTrack(ptrackRef_0);
@@ -1004,7 +1005,7 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 		JetInfo[iJetColl].Track_distance_TwoHighest3DSig[JetInfo[iJetColl].nJet]  = dist.distance();
 		}
 	
-
+      }	
 
       JetInfo[iJetColl].Jet_ntracks[JetInfo[iJetColl].nJet] = selectedTracks.size();
 
@@ -1158,10 +1159,10 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 
           JetInfo[iJetColl].Track_distTau[JetInfo[iJetColl].nTrack]   = distTauAxis;
           JetInfo[iJetColl].Track_lengthTau[JetInfo[iJetColl].nTrack] = decayLengthTau;
-          if (trackSelector(ptrack, data, *jet, pvv) && distTauAxis <0.3)  allKinematics_tighter.add(ptrack);
-          if(trackSelector(ptrack, data, *jet, pvv) && distTauAxis<0.3) {
+          if(trackSelector(ptrack, data, *jet, pvv) && distTauAxis <0.07)  allKinematics_tighter.add(ptrack);
+          if(trackSelector(ptrack, data, *jet, pvv) && distTauAxis<0.07) {
                 vertexKinematics_tighter.add(ptrack);
-                if(JetInfo[iJetColl].Track_isfromV0[JetInfo[iJetColl].nTrack] == 1){
+                if(JetInfo[iJetColl].Track_isfromV0[JetInfo[iJetColl].nTrack] == 0){
                 vtx_track_ptSum_tighter += std::sqrt(ptrack.momentum().Perp2());
                 vtx_track_ESum_tighter  += std::sqrt(ptrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus));
                 }
@@ -1677,22 +1678,23 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 
       // get the vertex kinematics and charge
       vertexKinematicsAndChange(vertex, vertexKinematics, totcharge, vtx_track_ptSum, vtx_track_ESum);
-
+      JetInfo[iJetColl].tau2_vertexDeltaR[JetInfo[iJetColl].nSV]    = -3;
+      JetInfo[iJetColl].tau1_vertexDeltaR[JetInfo[iJetColl].nSV]    = -3;		 
       if (currentAxes.size() > 1)
           {
             if (reco::deltaR2(svTagInfo->flightDirection(vtx),currentAxes[1]) < reco::deltaR2(svTagInfo->flightDirection(vtx),currentAxes[0])){
 		tau2Kinematics  = tau2Kinematics + vertexKinematics;		
-		JetInfo[iJetColl].tau2_deltaR[JetInfo[iJetColl].nSV]    = reco::deltaR(svTagInfo->flightDirection(vtx),currentAxes[1]) ;
+		if(JetInfo[iJetColl].tau2_vertexDeltaR[JetInfo[iJetColl].nSV]    <0) JetInfo[iJetColl].tau2_vertexDeltaR[JetInfo[iJetColl].nSV]    = reco::deltaR(svTagInfo->flightDirection(vtx),currentAxes[1]) ;
 		}
             else{
 		tau1Kinematics = tau1Kinematics + vertexKinematics;
-		JetInfo[iJetColl].tau1_deltaR[JetInfo[iJetColl].nSV]    = reco::deltaR(svTagInfo->flightDirection(vtx),currentAxes[0]) ;
+		if(JetInfo[iJetColl].tau1_vertexDeltaR[JetInfo[iJetColl].nSV]    <0)JetInfo[iJetColl].tau1_vertexDeltaR[JetInfo[iJetColl].nSV]    = reco::deltaR(svTagInfo->flightDirection(vtx),currentAxes[0]) ;
 		}
 	
           }
        else if (currentAxes.size() > 0){
 		tau1Kinematics = tau1Kinematics + vertexKinematics;
-		JetInfo[iJetColl].tau1_deltaR[JetInfo[iJetColl].nSV]    = reco::deltaR(svTagInfo->flightDirection(vtx),currentAxes[0]) ;
+		if(JetInfo[iJetColl].tau2_vertexDeltaR[JetInfo[iJetColl].nSV]    <0) JetInfo[iJetColl].tau1_vertexDeltaR[JetInfo[iJetColl].nSV]    = reco::deltaR(svTagInfo->flightDirection(vtx),currentAxes[0]) ;
 		}
 
       // total charge at the secondary vertex
@@ -1729,7 +1731,7 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
       JetInfo[iJetColl].SV_EnergyRatio_tighter[JetInfo[iJetColl].nSV] = vertexSum.E() / allSum_tighter.E();
 	
 
-      double vertexMass = vertexSum.M();
+      /*double vertexMass = vertexSum.M();
       double vertexPt2 = math::XYZVector(flightDir.x(), flightDir.y(), flightDir.z()).Cross(vertexSum).Mag2() / flightDir.mag2();
       vertexMass = std::sqrt(vertexMass * vertexMass + vertexPt2) + std::sqrt(vertexPt2);
 
@@ -1746,7 +1748,7 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 
       JetInfo[iJetColl].SV_mass_corrected_tighter[JetInfo[iJetColl].nSV]    = vertexMass_tighter;
       std::cout<< vertexMass_tighter <<std::endl;	
-
+     	
       double varPi = (vertexMass/5.2794) * (vtx_track_ESum /jet_track_ESum); // 5.2794 should be the average B meson mass of PDG! CHECK!!!
       JetInfo[iJetColl].SV_massVertexEnergyFraction[JetInfo[iJetColl].nSV]    =  varPi;
       double varB  = (std::sqrt(5.2794) * vtx_track_ptSum) / ( vertexMass * std::sqrt(jet->pt()));
@@ -1756,7 +1758,7 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
       JetInfo[iJetColl].SV_massVertexEnergyFraction_tighter[JetInfo[iJetColl].nSV]    =  varPi_tighter;
       double varB_tighter  = (std::sqrt(5.2794) * vtx_track_ptSum_tighter) / ( vertexMass_tighter * std::sqrt(jet->pt()));
       JetInfo[iJetColl].SV_vertexBoostOverSqrtJetPt_tighter[JetInfo[iJetColl].nSV]    =  varB_tighter*varB_tighter/(varB_tighter*varB_tighter + 10.);
-	
+	*/	
 
       
       
@@ -1775,23 +1777,23 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
     math::XYZTLorentzVector vertexSum_tau1 = tau1Kinematics.weightedVectorSum();
     math::XYZTLorentzVector vertexSum_tau2 = tau2Kinematics.weightedVectorSum();
 
-    JetInfo[iJetColl].tau1_EnergyRatio[JetInfo[iJetColl].nJet] = vertexSum_tau1.E() / ( allKinematics.weightedVectorSum()).E();
-    JetInfo[iJetColl].tau2_EnergyRatio[JetInfo[iJetColl].nJet] = vertexSum_tau2.E() / ( allKinematics.weightedVectorSum()).E();
+    JetInfo[iJetColl].tau1_vertexEnergyRatio[JetInfo[iJetColl].nJet] = vertexSum_tau1.E() / ( allKinematics.weightedVectorSum()).E();
+    JetInfo[iJetColl].tau2_vertexEnergyRatio[JetInfo[iJetColl].nJet] = vertexSum_tau2.E() / ( allKinematics.weightedVectorSum()).E();
 
 
     double vertexMass_tau1 = vertexSum_tau1.M();
-    JetInfo[iJetColl].tau1_mass[JetInfo[iJetColl].nJet]    = vertexMass_tau1;
+    JetInfo[iJetColl].tau1_vertexMass[JetInfo[iJetColl].nJet]    = vertexMass_tau1;
     double vertexPt2_tau1 = math::XYZVector(currentAxes[0].px(), currentAxes[0].py(), currentAxes[0].pz()).Cross(vertexSum_tau1).Mag2() / currentAxes[0].modp2();
     vertexMass_tau1 = std::sqrt(vertexMass_tau1 * vertexMass_tau1 + vertexPt2_tau1) + std::sqrt(vertexPt2_tau1);
     double vertexMass_tau2 = vertexSum_tau2.M();
-    JetInfo[iJetColl].tau2_mass[JetInfo[iJetColl].nJet]    = vertexMass_tau2;
+    JetInfo[iJetColl].tau2_vertexMass[JetInfo[iJetColl].nJet]    = vertexMass_tau2;
     double vertexPt2_tau2 = math::XYZVector(currentAxes[1].px(), currentAxes[1].py(), currentAxes[1].pz()).Cross(vertexSum_tau2).Mag2() / currentAxes[1].modp2();
     vertexMass_tau2 = std::sqrt(vertexMass_tau2 * vertexMass_tau2 + vertexPt2_tau2) + std::sqrt(vertexPt2_tau2);
 
 
 
-    JetInfo[iJetColl].tau1_mass_corrected[JetInfo[iJetColl].nJet]    = vertexMass_tau1;
-    JetInfo[iJetColl].tau2_mass_corrected[JetInfo[iJetColl].nJet]    = vertexMass_tau2;
+    JetInfo[iJetColl].tau1_vertexMass_corrected[JetInfo[iJetColl].nJet]    = vertexMass_tau1;
+    JetInfo[iJetColl].tau2_vertexMass_corrected[JetInfo[iJetColl].nJet]    = vertexMass_tau2;
 
 
 
