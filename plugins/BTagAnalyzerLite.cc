@@ -1777,8 +1777,8 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
     math::XYZTLorentzVector vertexSum_tau1 = tau1Kinematics.weightedVectorSum();
     math::XYZTLorentzVector vertexSum_tau2 = tau2Kinematics.weightedVectorSum();
 
-    JetInfo[iJetColl].tau1_vertexEnergyRatio[JetInfo[iJetColl].nJet] = vertexSum_tau1.E() / ( allKinematics.weightedVectorSum()).E();
-    JetInfo[iJetColl].tau2_vertexEnergyRatio[JetInfo[iJetColl].nJet] = vertexSum_tau2.E() / ( allKinematics.weightedVectorSum()).E();
+    JetInfo[iJetColl].tau1_vertexEnergyRatio[JetInfo[iJetColl].nJet] = vertexSum_tau1.E() / allSum.E();
+    JetInfo[iJetColl].tau2_vertexEnergyRatio[JetInfo[iJetColl].nJet] = vertexSum_tau2.E() / allSum.E();
 
 
     double vertexMass_tau1 = vertexSum_tau1.M();
