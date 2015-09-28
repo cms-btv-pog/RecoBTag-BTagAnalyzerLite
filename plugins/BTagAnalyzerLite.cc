@@ -297,9 +297,9 @@ class BTagAnalyzerLiteT : public edm::EDAnalyzer
     std::unique_ptr<TMVAEvaluator> evaluator_SL_;
     std::unique_ptr<TMVAEvaluator> evaluator_cascade_;
     std::unique_ptr<TMVAEvaluator> evaluator_all_;
+    edm::ParameterSet dropDeltaR(const edm::ParameterSet &pset) const;	
   
     reco::TrackSelector                 trackSelector;
-//    reco::TrackSelector                 trackPseudoSelector;
 
 
     // track V0 filter
@@ -322,7 +322,6 @@ BTagAnalyzerLiteT<IPTI,VTX>::BTagAnalyzerLiteT(const edm::ParameterSet& iConfig)
   njettiness_(fastjet::contrib::OnePass_KT_Axes(), fastjet::contrib::NormalizedMeasure(beta_,R0_)),
   maxSVDeltaRToJet_(iConfig.getParameter<double>("maxSVDeltaRToJet")),
   trackSelector(iConfig.getParameter<edm::ParameterSet>("trackSelection")),
-  //trackPseudoSelector(iConfig.getParameter<edm::ParameterSet>("trackPseudoSelection")),
   trackPairV0Filter(iConfig.getParameter<edm::ParameterSet>("trackPairV0Filter")),
   sortCriterium(TrackSorting::getCriterium(iConfig.getParameter<std::string>("trackSort")))
 {
@@ -989,22 +988,50 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
       const Tracks & selectedTracks( ipTagInfo->selectedTracks() );
       const std::vector<reco::btag::TrackIPData> &ipData = ipTagInfo->impactParameterData();	
       std::vector<std::size_t> indices = ipTagInfo->sortedIndexes(sortCriterium) 	;
+      JetInfo[iJetColl].trackSip2dSigAboveCharm_0[JetInfo[iJetColl].nJet] =-3;
+      JetInfo[iJetColl].trackSip2dSigAboveCharm_1[JetInfo[iJetColl].nJet] =-3;	
+      TrackKinematics kin;
+      for (unsigned int i =0; i<indices.size(); i++){	
+                std::size_t idx = indices[i];
+                const btag::TrackIPData &data = ipData[idx];
+		const TrackRef ptrackRef = selectedTracks[idx];
+		const reco::Track * ptrackPtr = reco::btag::toTrack(ptrackRef);
+		const reco::Track & track = (*ptrackPtr);  //bestTrack() ??? 
+		
+		
+
+                //const Track &track = *selectedTracks[idx];
+		
+		  GlobalPoint pvv(pv->x(),pv->y(),pv->z());
+		  edm::RefToBase<Jet> jet = ipTagInfo->jet();
+
+
+		  if (!trackSelector(track, data, *jet, pvv))
+			  continue;
+
+		  kin.add(track);
+		  if (kin.vectorSum().M() > 1.5){//charm cut
+			  if( JetInfo[iJetColl].trackSip2dSigAboveCharm_0[JetInfo[iJetColl].nJet] <0 )  JetInfo[iJetColl].trackSip2dSigAboveCharm_0[JetInfo[iJetColl].nJet]=  data.ip2d.significance();
+			  else  JetInfo[iJetColl].trackSip2dSigAboveCharm_1[JetInfo[iJetColl].nJet]=  data.ip2d.significance();
+		  }	
+      }
+
 
       JetInfo[iJetColl].Track_distance_TwoHighest3DSig[JetInfo[iJetColl].nJet]  = 	-3;
       if(indices.size()>1){	
-      const TrackRef ptrackRef_0 = selectedTracks[indices[0]];
-      const TrackRef ptrackRef_1 = selectedTracks[indices[1]];
-      const reco::Track * ptrackPtr_0 = reco::btag::toTrack(ptrackRef_0);
-      const reco::Track * ptrackPtr_1 = reco::btag::toTrack(ptrackRef_1);	
-      const reco::Track & ptrack_0 = *ptrackPtr_0;
-      const reco::Track & ptrack_1 = *ptrackPtr_1;	
-      reco::TransientTrack transientTrack_0 = trackBuilder->build(ptrack_0);	
-      reco::TransientTrack transientTrack_1 = trackBuilder->build(ptrack_1);	
-      TwoTrackMinimumDistance dist;
-      if ( dist.calculate( transientTrack_0.impactPointState(), transientTrack_1.impactPointState()) ) {
-		JetInfo[iJetColl].Track_distance_TwoHighest3DSig[JetInfo[iJetColl].nJet]  = dist.distance();
-		}
-	
+	      const TrackRef ptrackRef_0 = selectedTracks[indices[0]];
+	      const TrackRef ptrackRef_1 = selectedTracks[indices[1]];
+	      const reco::Track * ptrackPtr_0 = reco::btag::toTrack(ptrackRef_0);
+	      const reco::Track * ptrackPtr_1 = reco::btag::toTrack(ptrackRef_1);	
+	      const reco::Track & ptrack_0 = *ptrackPtr_0;
+	      const reco::Track & ptrack_1 = *ptrackPtr_1;	
+	      reco::TransientTrack transientTrack_0 = trackBuilder->build(ptrack_0);	
+	      reco::TransientTrack transientTrack_1 = trackBuilder->build(ptrack_1);	
+	      TwoTrackMinimumDistance dist;
+	      if ( dist.calculate( transientTrack_0.impactPointState(), transientTrack_1.impactPointState()) ) {
+		      JetInfo[iJetColl].Track_distance_TwoHighest3DSig[JetInfo[iJetColl].nJet]  = dist.distance();
+	      }
+
       }	
 
       JetInfo[iJetColl].Jet_ntracks[JetInfo[iJetColl].nJet] = selectedTracks.size();
@@ -1012,170 +1039,171 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
       JetInfo[iJetColl].Jet_nFirstTrack[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nTrack;
 
       unsigned int trackSize = selectedTracks.size();
-	
+
 
       for (unsigned int itt=0; itt < trackSize; ++itt)
       {
-        const TrackRef ptrackRef = selectedTracks[itt];
-        const reco::Track * ptrackPtr = reco::btag::toTrack(ptrackRef);
-        const reco::btag::TrackIPData &data = ipData[itt];
-        const reco::Track & ptrack = *ptrackPtr;
-        jet_track_ESum += std::sqrt(ptrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus)); 
+	      const TrackRef ptrackRef = selectedTracks[itt];
+	      const reco::Track * ptrackPtr = reco::btag::toTrack(ptrackRef);
+	      const reco::btag::TrackIPData &data = ipData[itt];
+	      const reco::Track & ptrack = *ptrackPtr;
+	      jet_track_ESum += std::sqrt(ptrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus)); 
 
-        //--------------------------------
-        float decayLength = (ipTagInfo->impactParameterData()[itt].closestToJetAxis - RecoVertex::convertPos(pv->position())).mag();
-        float distJetAxis = ipTagInfo->impactParameterData()[itt].distanceToJetAxis.value();
+	      //--------------------------------
+	      float decayLength = (ipTagInfo->impactParameterData()[itt].closestToJetAxis - RecoVertex::convertPos(pv->position())).mag();
+	      float distJetAxis = ipTagInfo->impactParameterData()[itt].distanceToJetAxis.value();
 
-        JetInfo[iJetColl].Track_dist[JetInfo[iJetColl].nTrack]     = distJetAxis;
-        JetInfo[iJetColl].Track_length[JetInfo[iJetColl].nTrack]   = decayLength;
+	      JetInfo[iJetColl].Track_dist[JetInfo[iJetColl].nTrack]     = distJetAxis;
+	      JetInfo[iJetColl].Track_length[JetInfo[iJetColl].nTrack]   = decayLength;
 
-        JetInfo[iJetColl].Track_dxy[JetInfo[iJetColl].nTrack]      = ptrack.dxy(pv->position());
-        JetInfo[iJetColl].Track_dz[JetInfo[iJetColl].nTrack]       = ptrack.dz(pv->position());
+	      JetInfo[iJetColl].Track_dxy[JetInfo[iJetColl].nTrack]      = ptrack.dxy(pv->position());
+	      JetInfo[iJetColl].Track_dz[JetInfo[iJetColl].nTrack]       = ptrack.dz(pv->position());
 
-        float deltaR = reco::deltaR( ptrack.eta(), ptrack.phi(),
-                                     JetInfo[iJetColl].Jet_eta[JetInfo[iJetColl].nJet], JetInfo[iJetColl].Jet_phi[JetInfo[iJetColl].nJet] );
+	      float deltaR = reco::deltaR( ptrack.eta(), ptrack.phi(),
+			      JetInfo[iJetColl].Jet_eta[JetInfo[iJetColl].nJet], JetInfo[iJetColl].Jet_phi[JetInfo[iJetColl].nJet] );
 
-        if (deltaR < 0.3) nseltracks++;
+	      if (deltaR < 0.3) nseltracks++;
 
-        if ( runFatJets_ && runSubJets_ && iJetColl == 0 )
-        {
-          for ( size_t i = 0; i < SubJetLabels_.size(); ++i )
-          {
-            if ( subjets[SubJetLabels_[i]].size()<2 ) continue;
+	      if ( runFatJets_ && runSubJets_ && iJetColl == 0 )
+	      {
+		      for ( size_t i = 0; i < SubJetLabels_.size(); ++i )
+		      {
+			      if ( subjets[SubJetLabels_[i]].size()<2 ) continue;
 
-            float dR1 = reco::deltaR( ptrack.eta(), ptrack.phi(),
-                                      subjets[SubJetLabels_[i]].at(0)->eta(), subjets[SubJetLabels_[i]].at(0)->phi() );
+			      float dR1 = reco::deltaR( ptrack.eta(), ptrack.phi(),
+					      subjets[SubJetLabels_[i]].at(0)->eta(), subjets[SubJetLabels_[i]].at(0)->phi() );
 
-            float dR2 = reco::deltaR( ptrack.eta(), ptrack.phi(),
-                                      subjets[SubJetLabels_[i]].at(1)->eta(), subjets[SubJetLabels_[i]].at(1)->phi() );
+			      float dR2 = reco::deltaR( ptrack.eta(), ptrack.phi(),
+					      subjets[SubJetLabels_[i]].at(1)->eta(), subjets[SubJetLabels_[i]].at(1)->phi() );
 
-            if ( dR1 < 0.3 && dR2 < 0.3 ) nsharedtracks[SubJetLabels_[i]]++;
-          }
-        }
+			      if ( dR1 < 0.3 && dR2 < 0.3 ) nsharedtracks[SubJetLabels_[i]]++;
+		      }
+	      }
 
-        JetInfo[iJetColl].Track_IP2D[JetInfo[iJetColl].nTrack]     = ipTagInfo->impactParameterData()[itt].ip2d.value();
-        JetInfo[iJetColl].Track_IP2Dsig[JetInfo[iJetColl].nTrack]  = ipTagInfo->impactParameterData()[itt].ip2d.significance();
-        JetInfo[iJetColl].Track_IP[JetInfo[iJetColl].nTrack]       = ipTagInfo->impactParameterData()[itt].ip3d.value();
-        JetInfo[iJetColl].Track_IPsig[JetInfo[iJetColl].nTrack]    = ipTagInfo->impactParameterData()[itt].ip3d.significance();
-        JetInfo[iJetColl].Track_IP2Derr[JetInfo[iJetColl].nTrack]  = ipTagInfo->impactParameterData()[itt].ip2d.error();
-        JetInfo[iJetColl].Track_IPerr[JetInfo[iJetColl].nTrack]    = ipTagInfo->impactParameterData()[itt].ip3d.error();
-        JetInfo[iJetColl].Track_Proba[JetInfo[iJetColl].nTrack]    = ipTagInfo->probabilities(0)[itt];
+	      JetInfo[iJetColl].Track_IP2D[JetInfo[iJetColl].nTrack]     = ipTagInfo->impactParameterData()[itt].ip2d.value();
+	      JetInfo[iJetColl].Track_IP2Dsig[JetInfo[iJetColl].nTrack]  = ipTagInfo->impactParameterData()[itt].ip2d.significance();
+	      JetInfo[iJetColl].Track_IP[JetInfo[iJetColl].nTrack]       = ipTagInfo->impactParameterData()[itt].ip3d.value();
+	      JetInfo[iJetColl].Track_IPsig[JetInfo[iJetColl].nTrack]    = ipTagInfo->impactParameterData()[itt].ip3d.significance();
+	      JetInfo[iJetColl].Track_IP2Derr[JetInfo[iJetColl].nTrack]  = ipTagInfo->impactParameterData()[itt].ip2d.error();
+	      JetInfo[iJetColl].Track_IPerr[JetInfo[iJetColl].nTrack]    = ipTagInfo->impactParameterData()[itt].ip3d.error();
+	      JetInfo[iJetColl].Track_Proba[JetInfo[iJetColl].nTrack]    = ipTagInfo->probabilities(0)[itt];
 
-        JetInfo[iJetColl].Track_p[JetInfo[iJetColl].nTrack]        = ptrack.p();
-        JetInfo[iJetColl].Track_pt[JetInfo[iJetColl].nTrack]       = ptrack.pt();
-        JetInfo[iJetColl].Track_eta[JetInfo[iJetColl].nTrack]      = ptrack.eta();
-        JetInfo[iJetColl].Track_phi[JetInfo[iJetColl].nTrack]      = ptrack.phi();
-        JetInfo[iJetColl].Track_chi2[JetInfo[iJetColl].nTrack]     = ptrack.normalizedChi2();
-        JetInfo[iJetColl].Track_charge[JetInfo[iJetColl].nTrack]   = ptrack.charge();
+	      JetInfo[iJetColl].Track_p[JetInfo[iJetColl].nTrack]        = ptrack.p();
+	      JetInfo[iJetColl].Track_pt[JetInfo[iJetColl].nTrack]       = ptrack.pt();
+	      JetInfo[iJetColl].Track_eta[JetInfo[iJetColl].nTrack]      = ptrack.eta();
+	      JetInfo[iJetColl].Track_phi[JetInfo[iJetColl].nTrack]      = ptrack.phi();
+	      JetInfo[iJetColl].Track_chi2[JetInfo[iJetColl].nTrack]     = ptrack.normalizedChi2();
+	      JetInfo[iJetColl].Track_charge[JetInfo[iJetColl].nTrack]   = ptrack.charge();
 
-        JetInfo[iJetColl].Track_nHitAll[JetInfo[iJetColl].nTrack]  = ptrack.numberOfValidHits();
-        JetInfo[iJetColl].Track_nHitPixel[JetInfo[iJetColl].nTrack]= ptrack.hitPattern().numberOfValidPixelHits();
-        JetInfo[iJetColl].Track_nHitStrip[JetInfo[iJetColl].nTrack]= ptrack.hitPattern().numberOfValidStripHits();
-        JetInfo[iJetColl].Track_nHitTIB[JetInfo[iJetColl].nTrack]  = ptrack.hitPattern().numberOfValidStripTIBHits();
-        JetInfo[iJetColl].Track_nHitTID[JetInfo[iJetColl].nTrack]  = ptrack.hitPattern().numberOfValidStripTIDHits();
-        JetInfo[iJetColl].Track_nHitTOB[JetInfo[iJetColl].nTrack]  = ptrack.hitPattern().numberOfValidStripTOBHits();
-        JetInfo[iJetColl].Track_nHitTEC[JetInfo[iJetColl].nTrack]  = ptrack.hitPattern().numberOfValidStripTECHits();
-        JetInfo[iJetColl].Track_nHitPXB[JetInfo[iJetColl].nTrack]  = ptrack.hitPattern().numberOfValidPixelBarrelHits();
-        JetInfo[iJetColl].Track_nHitPXF[JetInfo[iJetColl].nTrack]  = ptrack.hitPattern().numberOfValidPixelEndcapHits();
-        JetInfo[iJetColl].Track_isHitL1[JetInfo[iJetColl].nTrack]  = ptrack.hitPattern().hasValidHitInFirstPixelBarrel();
+	      JetInfo[iJetColl].Track_nHitAll[JetInfo[iJetColl].nTrack]  = ptrack.numberOfValidHits();
+	      JetInfo[iJetColl].Track_nHitPixel[JetInfo[iJetColl].nTrack]= ptrack.hitPattern().numberOfValidPixelHits();
+	      JetInfo[iJetColl].Track_nHitStrip[JetInfo[iJetColl].nTrack]= ptrack.hitPattern().numberOfValidStripHits();
+	      JetInfo[iJetColl].Track_nHitTIB[JetInfo[iJetColl].nTrack]  = ptrack.hitPattern().numberOfValidStripTIBHits();
+	      JetInfo[iJetColl].Track_nHitTID[JetInfo[iJetColl].nTrack]  = ptrack.hitPattern().numberOfValidStripTIDHits();
+	      JetInfo[iJetColl].Track_nHitTOB[JetInfo[iJetColl].nTrack]  = ptrack.hitPattern().numberOfValidStripTOBHits();
+	      JetInfo[iJetColl].Track_nHitTEC[JetInfo[iJetColl].nTrack]  = ptrack.hitPattern().numberOfValidStripTECHits();
+	      JetInfo[iJetColl].Track_nHitPXB[JetInfo[iJetColl].nTrack]  = ptrack.hitPattern().numberOfValidPixelBarrelHits();
+	      JetInfo[iJetColl].Track_nHitPXF[JetInfo[iJetColl].nTrack]  = ptrack.hitPattern().numberOfValidPixelEndcapHits();
+	      JetInfo[iJetColl].Track_isHitL1[JetInfo[iJetColl].nTrack]  = ptrack.hitPattern().hasValidHitInFirstPixelBarrel();
 
-        setTracksPV(ptrackRef, primaryVertex,
-                    JetInfo[iJetColl].Track_PV[JetInfo[iJetColl].nTrack],
-                    JetInfo[iJetColl].Track_PVweight[JetInfo[iJetColl].nTrack]);
+	      setTracksPV(ptrackRef, primaryVertex,
+			      JetInfo[iJetColl].Track_PV[JetInfo[iJetColl].nTrack],
+			      JetInfo[iJetColl].Track_PVweight[JetInfo[iJetColl].nTrack]);
 
-        if(JetInfo[iJetColl].Track_PV[JetInfo[iJetColl].nTrack]==0 &&
-           JetInfo[iJetColl].Track_PVweight[JetInfo[iJetColl].nTrack]>0) { 
-		allKinematics.add(ptrack, JetInfo[iJetColl].Track_PVweight[JetInfo[iJetColl].nTrack]); 
-		}
-
-	
-
-
-        if( pjet->hasTagInfo(svTagInfos_.c_str()) )
-        {
-          setTracksSV(ptrackRef, svTagInfo,
-                      JetInfo[iJetColl].Track_isfromSV[JetInfo[iJetColl].nTrack],
-                      JetInfo[iJetColl].Track_SV[JetInfo[iJetColl].nTrack],
-                      JetInfo[iJetColl].Track_SVweight[JetInfo[iJetColl].nTrack]);
-        }
-        else
-        {
-          JetInfo[iJetColl].Track_isfromSV[JetInfo[iJetColl].nTrack] = 0;
-          JetInfo[iJetColl].Track_SV[JetInfo[iJetColl].nTrack] = -1;
-          JetInfo[iJetColl].Track_SVweight[JetInfo[iJetColl].nTrack] = 0.;
-        }
-
-        // check if the track is a V0 decay product candidate
-        JetInfo[iJetColl].Track_isfromV0[JetInfo[iJetColl].nTrack] = 0;
-        // apply the V0 filter
-        const reco::Track * trackPairV0Test[2];
-        trackPairV0Test[0] = ptrackPtr;
-
-        for (unsigned int jtt=0; jtt < trackSize; ++jtt)
-        {
-          if (itt == jtt) continue;
-
-          const TrackRef pairTrackRef = selectedTracks[jtt];
-          const reco::Track * pairTrackPtr = reco::btag::toTrack(pairTrackRef);
-
-          trackPairV0Test[1] = pairTrackPtr;
-
-          if (!trackPairV0Filter(trackPairV0Test, 2))
-          {
-            JetInfo[iJetColl].Track_isfromV0[JetInfo[iJetColl].nTrack] = 1;
-            break;
-          }
-        }
-
-	GlobalPoint pvv(pv->x(),pv->y(),pv->z());
-        edm::RefToBase<Jet> jet = ipTagInfo->jet();
+	      if(JetInfo[iJetColl].Track_PV[JetInfo[iJetColl].nTrack]==0 &&
+			      JetInfo[iJetColl].Track_PVweight[JetInfo[iJetColl].nTrack]>0) { 
+		      allKinematics.add(ptrack, JetInfo[iJetColl].Track_PVweight[JetInfo[iJetColl].nTrack]); 
+	      }
 
 
 
-        // compute decay length and distance to tau axis
-        if ( runFatJets_ && iJetColl == 0 )
-        {
-          reco::TransientTrack transientTrack = trackBuilder->build(ptrack);
-          GlobalVector direction(pjet->px(), pjet->py(), pjet->pz());
 
-          if (currentAxes.size() > 1)
-          {
-            if (reco::deltaR2(ptrack,currentAxes[1]) < reco::deltaR2(ptrack,currentAxes[0]))
-              direction = GlobalVector(currentAxes[1].px(), currentAxes[1].py(), currentAxes[1].pz());
-            else
-              direction = GlobalVector(currentAxes[0].px(), currentAxes[0].py(), currentAxes[0].pz());
-          }
-          else if (currentAxes.size() > 0)
-            direction = GlobalVector(currentAxes[0].px(), currentAxes[0].py(), currentAxes[0].pz());
+	      if( pjet->hasTagInfo(svTagInfos_.c_str()) )
+	      {
+		      setTracksSV(ptrackRef, svTagInfo,
+				      JetInfo[iJetColl].Track_isfromSV[JetInfo[iJetColl].nTrack],
+				      JetInfo[iJetColl].Track_SV[JetInfo[iJetColl].nTrack],
+				      JetInfo[iJetColl].Track_SVweight[JetInfo[iJetColl].nTrack]);
+	      }
+	      else
+	      {
+		      JetInfo[iJetColl].Track_isfromSV[JetInfo[iJetColl].nTrack] = 0;
+		      JetInfo[iJetColl].Track_SV[JetInfo[iJetColl].nTrack] = -1;
+		      JetInfo[iJetColl].Track_SVweight[JetInfo[iJetColl].nTrack] = 0.;
+	      }
 
-          float decayLengthTau=-1;
-          float distTauAxis=-1;
+	      // check if the track is a V0 decay product candidate
+	      JetInfo[iJetColl].Track_isfromV0[JetInfo[iJetColl].nTrack] = 0;
+	      // apply the V0 filter
+	      const reco::Track * trackPairV0Test[2];
+	      trackPairV0Test[0] = ptrackPtr;
 
-          TrajectoryStateOnSurface closest = IPTools::closestApproachToJet(transientTrack.impactPointState(), *pv, direction, transientTrack.field());
-          if (closest.isValid())
-            decayLengthTau =  (closest.globalPosition() - RecoVertex::convertPos(pv->position())).mag();
+	      for (unsigned int jtt=0; jtt < trackSize; ++jtt)
+	      {
+		      if (itt == jtt) continue;
 
-          distTauAxis = std::abs(IPTools::jetTrackDistance(transientTrack, direction, *pv).second.value());
+		      const TrackRef pairTrackRef = selectedTracks[jtt];
+		      const reco::Track * pairTrackPtr = reco::btag::toTrack(pairTrackRef);
 
-          JetInfo[iJetColl].Track_distTau[JetInfo[iJetColl].nTrack]   = distTauAxis;
-          JetInfo[iJetColl].Track_lengthTau[JetInfo[iJetColl].nTrack] = decayLengthTau;
-          if(trackSelector(ptrack, data, *jet, pvv) && distTauAxis <0.07)  allKinematics_tighter.add(ptrack);
-          if(trackSelector(ptrack, data, *jet, pvv) && distTauAxis<0.07) {
-                vertexKinematics_tighter.add(ptrack);
-                if(JetInfo[iJetColl].Track_isfromV0[JetInfo[iJetColl].nTrack] == 0){
-                vtx_track_ptSum_tighter += std::sqrt(ptrack.momentum().Perp2());
-                vtx_track_ESum_tighter  += std::sqrt(ptrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus));
-                }
-        }
+		      trackPairV0Test[1] = pairTrackPtr;
 
-	
-
-
-	}
+		      if (!trackPairV0Filter(trackPairV0Test, 2))
+		      {
+			      JetInfo[iJetColl].Track_isfromV0[JetInfo[iJetColl].nTrack] = 1;
+			      break;
+		      }
+	      }
 
 
 
-        ++JetInfo[iJetColl].nTrack;
+
+	      // compute decay length and distance to tau axis
+	      if ( runFatJets_ && iJetColl == 0 )
+	      {
+		      reco::TransientTrack transientTrack = trackBuilder->build(ptrack);
+		      GlobalVector direction(pjet->px(), pjet->py(), pjet->pz());
+		      GlobalPoint pvv(pv->x(),pv->y(),pv->z());
+		      edm::RefToBase<Jet> jet = ipTagInfo->jet();
+
+
+		       if (currentAxes.size() > 1)
+		       {
+			       if (reco::deltaR2(ptrack,currentAxes[1]) < reco::deltaR2(ptrack,currentAxes[0]))
+				       direction = GlobalVector(currentAxes[1].px(), currentAxes[1].py(), currentAxes[1].pz());
+			       else
+				       direction = GlobalVector(currentAxes[0].px(), currentAxes[0].py(), currentAxes[0].pz());
+		       }
+		       else if (currentAxes.size() > 0)
+			       direction = GlobalVector(currentAxes[0].px(), currentAxes[0].py(), currentAxes[0].pz());
+
+		       float decayLengthTau=-1;
+		       float distTauAxis=-1;
+
+		       TrajectoryStateOnSurface closest = IPTools::closestApproachToJet(transientTrack.impactPointState(), *pv, direction, transientTrack.field());
+		       if (closest.isValid())
+			       decayLengthTau =  (closest.globalPosition() - RecoVertex::convertPos(pv->position())).mag();
+
+		       distTauAxis = std::abs(IPTools::jetTrackDistance(transientTrack, direction, *pv).second.value());
+
+		       JetInfo[iJetColl].Track_distTau[JetInfo[iJetColl].nTrack]   = distTauAxis;
+		       JetInfo[iJetColl].Track_lengthTau[JetInfo[iJetColl].nTrack] = decayLengthTau;
+		       if(trackSelector(ptrack, data, *jet, pvv) && distTauAxis <0.07)  allKinematics_tighter.add(ptrack);
+		       if(trackSelector(ptrack, data, *jet, pvv) && distTauAxis<0.07) {
+			       vertexKinematics_tighter.add(ptrack);
+			       if(JetInfo[iJetColl].Track_isfromV0[JetInfo[iJetColl].nTrack] == 0){
+				       vtx_track_ptSum_tighter += std::sqrt(ptrack.momentum().Perp2());
+				       vtx_track_ESum_tighter  += std::sqrt(ptrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus));
+			       }
+		       }
+
+
+
+
+	      }
+
+
+
+	      ++JetInfo[iJetColl].nTrack;
       } //// end loop on tracks
     }
 
@@ -1183,8 +1211,8 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 
     if ( runFatJets_ && runSubJets_ && iJetColl == 0 )
     {
-      for ( size_t i = 0; i < SubJetLabels_.size(); ++i )
-        SubJetInfo[SubJetLabels_[i]].Jet_nsharedtracks[JetInfo[iJetColl].nJet] = nsharedtracks[SubJetLabels_[i]];
+	    for ( size_t i = 0; i < SubJetLabels_.size(); ++i )
+		    SubJetInfo[SubJetLabels_[i]].Jet_nsharedtracks[JetInfo[iJetColl].nJet] = nsharedtracks[SubJetLabels_[i]];
     }
 
     JetInfo[iJetColl].Jet_nLastTrack[JetInfo[iJetColl].nJet]   = JetInfo[iJetColl].nTrack;
@@ -1193,100 +1221,100 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 
     if ( produceJetPFLeptonTree_ )
     {
-      // PFMuon information
-      int nSM = (pjet->hasTagInfo(softPFMuonTagInfos_.c_str()) ? softPFMuTagInfo->leptons() : 0);
-      //JetInfo[iJetColl].Jet_nSM[JetInfo[iJetColl].nJet] = nSM;
-      JetInfo[iJetColl].Jet_nFirstSM[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nPFMuon;
-      int nSM_3 =0;
-      for (size_t leptIdx = 0; leptIdx < (size_t)nSM; ++leptIdx) {
-        if(softPFMuTagInfo->properties(leptIdx).ptRel>5.) nSM_3++;
-        JetInfo[iJetColl].PFMuon_IdxJet[JetInfo[iJetColl].nPFMuon]    = JetInfo[iJetColl].nJet;
-        JetInfo[iJetColl].PFMuon_pt[JetInfo[iJetColl].nPFMuon]        = softPFMuTagInfo->lepton(leptIdx)->pt();
-        JetInfo[iJetColl].PFMuon_eta[JetInfo[iJetColl].nPFMuon]       = softPFMuTagInfo->lepton(leptIdx)->eta();
-        JetInfo[iJetColl].PFMuon_phi[JetInfo[iJetColl].nPFMuon]       = softPFMuTagInfo->lepton(leptIdx)->phi();
-        JetInfo[iJetColl].PFMuon_ptrel[JetInfo[iJetColl].nPFMuon]     = (softPFMuTagInfo->properties(leptIdx).ptRel);
-        JetInfo[iJetColl].PFMuon_ratio[JetInfo[iJetColl].nPFMuon]     = (softPFMuTagInfo->properties(leptIdx).ratio);
-        JetInfo[iJetColl].PFMuon_ratioRel[JetInfo[iJetColl].nPFMuon]  = (softPFMuTagInfo->properties(leptIdx).ratioRel);
-        JetInfo[iJetColl].PFMuon_deltaR[JetInfo[iJetColl].nPFMuon]    = (softPFMuTagInfo->properties(leptIdx).deltaR);
-        JetInfo[iJetColl].PFMuon_IP[JetInfo[iJetColl].nPFMuon]        = (softPFMuTagInfo->properties(leptIdx).sip3d);
-        JetInfo[iJetColl].PFMuon_IP2D[JetInfo[iJetColl].nPFMuon]      = (softPFMuTagInfo->properties(leptIdx).sip2d);
+	    // PFMuon information
+	    int nSM = (pjet->hasTagInfo(softPFMuonTagInfos_.c_str()) ? softPFMuTagInfo->leptons() : 0);
+	    //JetInfo[iJetColl].Jet_nSM[JetInfo[iJetColl].nJet] = nSM;
+	    JetInfo[iJetColl].Jet_nFirstSM[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nPFMuon;
+	    int nSM_3 =0;
+	    for (size_t leptIdx = 0; leptIdx < (size_t)nSM; ++leptIdx) {
+		    if(softPFMuTagInfo->properties(leptIdx).ptRel>5.) nSM_3++;
+		    JetInfo[iJetColl].PFMuon_IdxJet[JetInfo[iJetColl].nPFMuon]    = JetInfo[iJetColl].nJet;
+		    JetInfo[iJetColl].PFMuon_pt[JetInfo[iJetColl].nPFMuon]        = softPFMuTagInfo->lepton(leptIdx)->pt();
+		    JetInfo[iJetColl].PFMuon_eta[JetInfo[iJetColl].nPFMuon]       = softPFMuTagInfo->lepton(leptIdx)->eta();
+		    JetInfo[iJetColl].PFMuon_phi[JetInfo[iJetColl].nPFMuon]       = softPFMuTagInfo->lepton(leptIdx)->phi();
+		    JetInfo[iJetColl].PFMuon_ptrel[JetInfo[iJetColl].nPFMuon]     = (softPFMuTagInfo->properties(leptIdx).ptRel);
+		    JetInfo[iJetColl].PFMuon_ratio[JetInfo[iJetColl].nPFMuon]     = (softPFMuTagInfo->properties(leptIdx).ratio);
+		    JetInfo[iJetColl].PFMuon_ratioRel[JetInfo[iJetColl].nPFMuon]  = (softPFMuTagInfo->properties(leptIdx).ratioRel);
+		    JetInfo[iJetColl].PFMuon_deltaR[JetInfo[iJetColl].nPFMuon]    = (softPFMuTagInfo->properties(leptIdx).deltaR);
+		    JetInfo[iJetColl].PFMuon_IP[JetInfo[iJetColl].nPFMuon]        = (softPFMuTagInfo->properties(leptIdx).sip3d);
+		    JetInfo[iJetColl].PFMuon_IP2D[JetInfo[iJetColl].nPFMuon]      = (softPFMuTagInfo->properties(leptIdx).sip2d);
 
-        JetInfo[iJetColl].PFMuon_nMuHit[JetInfo[iJetColl].nPFMuon] = 0;
-        JetInfo[iJetColl].PFMuon_nTkHit[JetInfo[iJetColl].nPFMuon] = 0;
-        JetInfo[iJetColl].PFMuon_nPixHit[JetInfo[iJetColl].nPFMuon] = 0;
-        JetInfo[iJetColl].PFMuon_nOutHit[JetInfo[iJetColl].nPFMuon] = 0;
-        JetInfo[iJetColl].PFMuon_nTkLwM[JetInfo[iJetColl].nPFMuon] = 0;
-        JetInfo[iJetColl].PFMuon_nPixLwM[JetInfo[iJetColl].nPFMuon] = 0;
-        JetInfo[iJetColl].PFMuon_nMatched[JetInfo[iJetColl].nPFMuon] = 0;
-        JetInfo[iJetColl].PFMuon_chi2[JetInfo[iJetColl].nPFMuon] = 99;
-        JetInfo[iJetColl].PFMuon_chi2Tk[JetInfo[iJetColl].nPFMuon]= 99;
-        JetInfo[iJetColl].PFMuon_isGlobal[JetInfo[iJetColl].nPFMuon] = 0;
-        JetInfo[iJetColl].PFMuon_dz[JetInfo[iJetColl].nPFMuon] = 99;
+		    JetInfo[iJetColl].PFMuon_nMuHit[JetInfo[iJetColl].nPFMuon] = 0;
+		    JetInfo[iJetColl].PFMuon_nTkHit[JetInfo[iJetColl].nPFMuon] = 0;
+		    JetInfo[iJetColl].PFMuon_nPixHit[JetInfo[iJetColl].nPFMuon] = 0;
+		    JetInfo[iJetColl].PFMuon_nOutHit[JetInfo[iJetColl].nPFMuon] = 0;
+		    JetInfo[iJetColl].PFMuon_nTkLwM[JetInfo[iJetColl].nPFMuon] = 0;
+		    JetInfo[iJetColl].PFMuon_nPixLwM[JetInfo[iJetColl].nPFMuon] = 0;
+		    JetInfo[iJetColl].PFMuon_nMatched[JetInfo[iJetColl].nPFMuon] = 0;
+		    JetInfo[iJetColl].PFMuon_chi2[JetInfo[iJetColl].nPFMuon] = 99;
+		    JetInfo[iJetColl].PFMuon_chi2Tk[JetInfo[iJetColl].nPFMuon]= 99;
+		    JetInfo[iJetColl].PFMuon_isGlobal[JetInfo[iJetColl].nPFMuon] = 0;
+		    JetInfo[iJetColl].PFMuon_dz[JetInfo[iJetColl].nPFMuon] = 99;
 
-        const edm::Ptr<reco::Muon> muonPtr = matchMuon( softPFMuTagInfo->lepton(leptIdx), muons );
-        if ( muonPtr.isNonnull() && muonPtr.isAvailable() && muonPtr->isGlobalMuon() ) {
+		    const edm::Ptr<reco::Muon> muonPtr = matchMuon( softPFMuTagInfo->lepton(leptIdx), muons );
+		    if ( muonPtr.isNonnull() && muonPtr.isAvailable() && muonPtr->isGlobalMuon() ) {
 
-          JetInfo[iJetColl].PFMuon_nMuHit[JetInfo[iJetColl].nPFMuon] = muonPtr->outerTrack()->hitPattern().numberOfValidMuonHits();
-          JetInfo[iJetColl].PFMuon_nTkHit[JetInfo[iJetColl].nPFMuon] = muonPtr->innerTrack()->hitPattern().numberOfValidHits();
-          JetInfo[iJetColl].PFMuon_nPixHit[JetInfo[iJetColl].nPFMuon] = muonPtr->innerTrack()->hitPattern().numberOfValidPixelHits();
-          JetInfo[iJetColl].PFMuon_nOutHit[JetInfo[iJetColl].nPFMuon] = muonPtr->innerTrack()->hitPattern().numberOfHits(reco::HitPattern::MISSING_OUTER_HITS);
-          JetInfo[iJetColl].PFMuon_nTkLwM[JetInfo[iJetColl].nPFMuon] = muonPtr->innerTrack()->hitPattern().trackerLayersWithMeasurement();
-          JetInfo[iJetColl].PFMuon_nPixLwM[JetInfo[iJetColl].nPFMuon] = muonPtr->innerTrack()->hitPattern().pixelLayersWithMeasurement();
-          JetInfo[iJetColl].PFMuon_nMatched[JetInfo[iJetColl].nPFMuon] = muonPtr->numberOfMatchedStations();
-          JetInfo[iJetColl].PFMuon_chi2[JetInfo[iJetColl].nPFMuon] = muonPtr->globalTrack()->normalizedChi2();
-          JetInfo[iJetColl].PFMuon_chi2Tk[JetInfo[iJetColl].nPFMuon]= muonPtr->innerTrack()->normalizedChi2();
-          JetInfo[iJetColl].PFMuon_isGlobal[JetInfo[iJetColl].nPFMuon] = 1;
-          JetInfo[iJetColl].PFMuon_dz[JetInfo[iJetColl].nPFMuon] = muonPtr->muonBestTrack()->dz(pv->position());
-        }
+			    JetInfo[iJetColl].PFMuon_nMuHit[JetInfo[iJetColl].nPFMuon] = muonPtr->outerTrack()->hitPattern().numberOfValidMuonHits();
+			    JetInfo[iJetColl].PFMuon_nTkHit[JetInfo[iJetColl].nPFMuon] = muonPtr->innerTrack()->hitPattern().numberOfValidHits();
+			    JetInfo[iJetColl].PFMuon_nPixHit[JetInfo[iJetColl].nPFMuon] = muonPtr->innerTrack()->hitPattern().numberOfValidPixelHits();
+			    JetInfo[iJetColl].PFMuon_nOutHit[JetInfo[iJetColl].nPFMuon] = muonPtr->innerTrack()->hitPattern().numberOfHits(reco::HitPattern::MISSING_OUTER_HITS);
+			    JetInfo[iJetColl].PFMuon_nTkLwM[JetInfo[iJetColl].nPFMuon] = muonPtr->innerTrack()->hitPattern().trackerLayersWithMeasurement();
+			    JetInfo[iJetColl].PFMuon_nPixLwM[JetInfo[iJetColl].nPFMuon] = muonPtr->innerTrack()->hitPattern().pixelLayersWithMeasurement();
+			    JetInfo[iJetColl].PFMuon_nMatched[JetInfo[iJetColl].nPFMuon] = muonPtr->numberOfMatchedStations();
+			    JetInfo[iJetColl].PFMuon_chi2[JetInfo[iJetColl].nPFMuon] = muonPtr->globalTrack()->normalizedChi2();
+			    JetInfo[iJetColl].PFMuon_chi2Tk[JetInfo[iJetColl].nPFMuon]= muonPtr->innerTrack()->normalizedChi2();
+			    JetInfo[iJetColl].PFMuon_isGlobal[JetInfo[iJetColl].nPFMuon] = 1;
+			    JetInfo[iJetColl].PFMuon_dz[JetInfo[iJetColl].nPFMuon] = muonPtr->muonBestTrack()->dz(pv->position());
+		    }
 
-        if ( JetInfo[iJetColl].PFMuon_ptrel[JetInfo[iJetColl].nPFMuon] > PFLepton_ptrel )
-        {
-          PFLepton_ptrel = JetInfo[iJetColl].PFMuon_ptrel[JetInfo[iJetColl].nPFMuon];
-          PFLepton_ratio  = JetInfo[iJetColl].PFMuon_ratio[JetInfo[iJetColl].nPFMuon];
-        }
+		    if ( JetInfo[iJetColl].PFMuon_ptrel[JetInfo[iJetColl].nPFMuon] > PFLepton_ptrel )
+		    {
+			    PFLepton_ptrel = JetInfo[iJetColl].PFMuon_ptrel[JetInfo[iJetColl].nPFMuon];
+			    PFLepton_ratio  = JetInfo[iJetColl].PFMuon_ratio[JetInfo[iJetColl].nPFMuon];
+		    }
 
-        ++JetInfo[iJetColl].nPFMuon;
-      }
-      JetInfo[iJetColl].Jet_nLastSM[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nPFMuon;
-      JetInfo[iJetColl].Jet_nSM[JetInfo[iJetColl].nJet] = nSM_3;
+		    ++JetInfo[iJetColl].nPFMuon;
+	    }
+	    JetInfo[iJetColl].Jet_nLastSM[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nPFMuon;
+	    JetInfo[iJetColl].Jet_nSM[JetInfo[iJetColl].nJet] = nSM_3;
 
-      // PFElectron information
-      int nSE = (pjet->hasTagInfo(softPFElectronTagInfos_.c_str()) ? softPFElTagInfo->leptons() : 0);
-      //JetInfo[iJetColl].Jet_nSE[JetInfo[iJetColl].nJet] = nSE;
-      JetInfo[iJetColl].Jet_nFirstSE[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nPFElectron;
-      int nSE_3 = 0;
-      for (size_t leptIdx = 0; leptIdx < (size_t)nSE; ++leptIdx) {
-        if(softPFElTagInfo->properties(leptIdx).ptRel > 5.) nSE_3++;
-        JetInfo[iJetColl].PFElectron_IdxJet[JetInfo[iJetColl].nPFElectron]    = JetInfo[iJetColl].nJet;
-        JetInfo[iJetColl].PFElectron_pt[JetInfo[iJetColl].nPFElectron]        = softPFElTagInfo->lepton(leptIdx)->pt();
-        JetInfo[iJetColl].PFElectron_eta[JetInfo[iJetColl].nPFElectron]       = softPFElTagInfo->lepton(leptIdx)->eta();
-        JetInfo[iJetColl].PFElectron_phi[JetInfo[iJetColl].nPFElectron]       = softPFElTagInfo->lepton(leptIdx)->phi();
-        JetInfo[iJetColl].PFElectron_ptrel[JetInfo[iJetColl].nPFElectron]     = (softPFElTagInfo->properties(leptIdx).ptRel);
-        JetInfo[iJetColl].PFElectron_ratio[JetInfo[iJetColl].nPFElectron]     = (softPFElTagInfo->properties(leptIdx).ratio);
-        JetInfo[iJetColl].PFElectron_ratioRel[JetInfo[iJetColl].nPFElectron]  = (softPFElTagInfo->properties(leptIdx).ratioRel);
-        JetInfo[iJetColl].PFElectron_deltaR[JetInfo[iJetColl].nPFElectron]    = (softPFElTagInfo->properties(leptIdx).deltaR);
-        JetInfo[iJetColl].PFElectron_IP[JetInfo[iJetColl].nPFElectron]        = (softPFElTagInfo->properties(leptIdx).sip3d);
-        JetInfo[iJetColl].PFElectron_IP2D[JetInfo[iJetColl].nPFElectron]      = (softPFElTagInfo->properties(leptIdx).sip2d);
+	    // PFElectron information
+	    int nSE = (pjet->hasTagInfo(softPFElectronTagInfos_.c_str()) ? softPFElTagInfo->leptons() : 0);
+	    //JetInfo[iJetColl].Jet_nSE[JetInfo[iJetColl].nJet] = nSE;
+	    JetInfo[iJetColl].Jet_nFirstSE[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nPFElectron;
+	    int nSE_3 = 0;
+	    for (size_t leptIdx = 0; leptIdx < (size_t)nSE; ++leptIdx) {
+		    if(softPFElTagInfo->properties(leptIdx).ptRel > 5.) nSE_3++;
+		    JetInfo[iJetColl].PFElectron_IdxJet[JetInfo[iJetColl].nPFElectron]    = JetInfo[iJetColl].nJet;
+		    JetInfo[iJetColl].PFElectron_pt[JetInfo[iJetColl].nPFElectron]        = softPFElTagInfo->lepton(leptIdx)->pt();
+		    JetInfo[iJetColl].PFElectron_eta[JetInfo[iJetColl].nPFElectron]       = softPFElTagInfo->lepton(leptIdx)->eta();
+		    JetInfo[iJetColl].PFElectron_phi[JetInfo[iJetColl].nPFElectron]       = softPFElTagInfo->lepton(leptIdx)->phi();
+		    JetInfo[iJetColl].PFElectron_ptrel[JetInfo[iJetColl].nPFElectron]     = (softPFElTagInfo->properties(leptIdx).ptRel);
+		    JetInfo[iJetColl].PFElectron_ratio[JetInfo[iJetColl].nPFElectron]     = (softPFElTagInfo->properties(leptIdx).ratio);
+		    JetInfo[iJetColl].PFElectron_ratioRel[JetInfo[iJetColl].nPFElectron]  = (softPFElTagInfo->properties(leptIdx).ratioRel);
+		    JetInfo[iJetColl].PFElectron_deltaR[JetInfo[iJetColl].nPFElectron]    = (softPFElTagInfo->properties(leptIdx).deltaR);
+		    JetInfo[iJetColl].PFElectron_IP[JetInfo[iJetColl].nPFElectron]        = (softPFElTagInfo->properties(leptIdx).sip3d);
+		    JetInfo[iJetColl].PFElectron_IP2D[JetInfo[iJetColl].nPFElectron]      = (softPFElTagInfo->properties(leptIdx).sip2d);
 
-        if ( JetInfo[iJetColl].PFElectron_ptrel[JetInfo[iJetColl].nPFElectron] > PFLepton_ptrel )
-        {
-          PFLepton_ptrel = JetInfo[iJetColl].PFElectron_ptrel[JetInfo[iJetColl].nPFElectron];
-          PFLepton_ratio = JetInfo[iJetColl].PFElectron_ratio[JetInfo[iJetColl].nPFElectron];
-        }
+		    if ( JetInfo[iJetColl].PFElectron_ptrel[JetInfo[iJetColl].nPFElectron] > PFLepton_ptrel )
+		    {
+			    PFLepton_ptrel = JetInfo[iJetColl].PFElectron_ptrel[JetInfo[iJetColl].nPFElectron];
+			    PFLepton_ratio = JetInfo[iJetColl].PFElectron_ratio[JetInfo[iJetColl].nPFElectron];
+		    }
 
-        ++JetInfo[iJetColl].nPFElectron;
-      }
-      JetInfo[iJetColl].Jet_nLastSE[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nPFElectron;
-      JetInfo[iJetColl].Jet_nSE[JetInfo[iJetColl].nJet] = nSE_3;
+		    ++JetInfo[iJetColl].nPFElectron;
+	    }
+	    JetInfo[iJetColl].Jet_nLastSE[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nPFElectron;
+	    JetInfo[iJetColl].Jet_nSE[JetInfo[iJetColl].nJet] = nSE_3;
     }
 
     if ( PFLepton_ptrel > 5 ) {
-         JetInfo[iJetColl].Jet_PFLepton_ptrel[JetInfo[iJetColl].nJet] = PFLepton_ptrel;
-         JetInfo[iJetColl].Jet_PFLepton_ratio[JetInfo[iJetColl].nJet]  = PFLepton_ratio;
+	    JetInfo[iJetColl].Jet_PFLepton_ptrel[JetInfo[iJetColl].nJet] = PFLepton_ptrel;
+	    JetInfo[iJetColl].Jet_PFLepton_ratio[JetInfo[iJetColl].nJet]  = PFLepton_ratio;
     }
     else {
-        JetInfo[iJetColl].Jet_PFLepton_ptrel[JetInfo[iJetColl].nJet] = -3.;
-        JetInfo[iJetColl].Jet_PFLepton_ratio[JetInfo[iJetColl].nJet]  = -3.;
+	    JetInfo[iJetColl].Jet_PFLepton_ptrel[JetInfo[iJetColl].nJet] = -3.;
+	    JetInfo[iJetColl].Jet_PFLepton_ratio[JetInfo[iJetColl].nJet]  = -3.;
     }
 
     // b-tagger discriminants
@@ -1351,283 +1379,283 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
     // TagInfo TaggingVariables
     if ( storeTagVariables )
     {
-      reco::TaggingVariableList ipVars = ipTagInfo->taggingVariables();
-      reco::TaggingVariableList svVars = svTagInfo->taggingVariables();
-      int nTracks = ipTagInfo->selectedTracks().size();
-      int nSVs = svTagInfo->nVertices();
+	    reco::TaggingVariableList ipVars = ipTagInfo->taggingVariables();
+	    reco::TaggingVariableList svVars = svTagInfo->taggingVariables();
+	    int nTracks = ipTagInfo->selectedTracks().size();
+	    int nSVs = svTagInfo->nVertices();
 
-      // per jet
-      JetInfo[iJetColl].TagVar_jetNTracks[JetInfo[iJetColl].nJet]                  = nTracks;
-      JetInfo[iJetColl].TagVar_jetNSecondaryVertices[JetInfo[iJetColl].nJet]       = nSVs;
-      //-------------
-      JetInfo[iJetColl].TagVar_chargedHadronEnergyFraction[JetInfo[iJetColl].nJet] = pjet->chargedHadronEnergyFraction();
-      JetInfo[iJetColl].TagVar_neutralHadronEnergyFraction[JetInfo[iJetColl].nJet] = pjet->neutralHadronEnergyFraction();
-      JetInfo[iJetColl].TagVar_photonEnergyFraction[JetInfo[iJetColl].nJet]        = pjet->photonEnergyFraction();
-      JetInfo[iJetColl].TagVar_electronEnergyFraction[JetInfo[iJetColl].nJet]      = pjet->electronEnergyFraction();
-      JetInfo[iJetColl].TagVar_muonEnergyFraction[JetInfo[iJetColl].nJet]          = pjet->muonEnergyFraction();
-      JetInfo[iJetColl].TagVar_chargedHadronMultiplicity[JetInfo[iJetColl].nJet]   = pjet->chargedHadronMultiplicity();
-      JetInfo[iJetColl].TagVar_neutralHadronMultiplicity[JetInfo[iJetColl].nJet]   = pjet->neutralHadronMultiplicity();
-      JetInfo[iJetColl].TagVar_photonMultiplicity[JetInfo[iJetColl].nJet]          = pjet->photonMultiplicity();
-      JetInfo[iJetColl].TagVar_electronMultiplicity[JetInfo[iJetColl].nJet]        = pjet->electronMultiplicity();
-      JetInfo[iJetColl].TagVar_muonMultiplicity[JetInfo[iJetColl].nJet]            = pjet->muonMultiplicity();
+	    // per jet
+	    JetInfo[iJetColl].TagVar_jetNTracks[JetInfo[iJetColl].nJet]                  = nTracks;
+	    JetInfo[iJetColl].TagVar_jetNSecondaryVertices[JetInfo[iJetColl].nJet]       = nSVs;
+	    //-------------
+	    JetInfo[iJetColl].TagVar_chargedHadronEnergyFraction[JetInfo[iJetColl].nJet] = pjet->chargedHadronEnergyFraction();
+	    JetInfo[iJetColl].TagVar_neutralHadronEnergyFraction[JetInfo[iJetColl].nJet] = pjet->neutralHadronEnergyFraction();
+	    JetInfo[iJetColl].TagVar_photonEnergyFraction[JetInfo[iJetColl].nJet]        = pjet->photonEnergyFraction();
+	    JetInfo[iJetColl].TagVar_electronEnergyFraction[JetInfo[iJetColl].nJet]      = pjet->electronEnergyFraction();
+	    JetInfo[iJetColl].TagVar_muonEnergyFraction[JetInfo[iJetColl].nJet]          = pjet->muonEnergyFraction();
+	    JetInfo[iJetColl].TagVar_chargedHadronMultiplicity[JetInfo[iJetColl].nJet]   = pjet->chargedHadronMultiplicity();
+	    JetInfo[iJetColl].TagVar_neutralHadronMultiplicity[JetInfo[iJetColl].nJet]   = pjet->neutralHadronMultiplicity();
+	    JetInfo[iJetColl].TagVar_photonMultiplicity[JetInfo[iJetColl].nJet]          = pjet->photonMultiplicity();
+	    JetInfo[iJetColl].TagVar_electronMultiplicity[JetInfo[iJetColl].nJet]        = pjet->electronMultiplicity();
+	    JetInfo[iJetColl].TagVar_muonMultiplicity[JetInfo[iJetColl].nJet]            = pjet->muonMultiplicity();
 
-      // per jet per track
-      JetInfo[iJetColl].Jet_nFirstTrkTagVar[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nTrkTagVar;
+	    // per jet per track
+	    JetInfo[iJetColl].Jet_nFirstTrkTagVar[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nTrkTagVar;
 
-      std::vector<float> tagValList = ipVars.getList(reco::btau::trackMomentum,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackMomentum[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackEta,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackEta[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackPhi,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackPhi[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackPtRel,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackPtRel[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackPPar,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackPPar[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackEtaRel,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackEtaRel[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackDeltaR,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackDeltaR[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackPtRatio,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackPtRatio[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackPParRatio,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackPParRatio[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackSip2dVal,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackSip2dVal[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackSip2dSig,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackSip2dSig[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackSip3dVal,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackSip3dVal[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackSip3dSig,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackSip3dSig[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackDecayLenVal,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackDecayLenVal[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackDecayLenSig,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackDecayLenSig[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackJetDistVal,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackJetDistVal[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackJetDistSig,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackJetDistSig[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackChi2,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackChi2[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackNTotalHits,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackNTotalHits[JetInfo[iJetColl].nTrkTagVar] );
-      tagValList = ipVars.getList(reco::btau::trackNPixelHits,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackNPixelHits[JetInfo[iJetColl].nTrkTagVar] );
+	    std::vector<float> tagValList = ipVars.getList(reco::btau::trackMomentum,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackMomentum[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackEta,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackEta[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackPhi,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackPhi[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackPtRel,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackPtRel[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackPPar,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackPPar[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackEtaRel,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackEtaRel[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackDeltaR,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackDeltaR[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackPtRatio,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackPtRatio[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackPParRatio,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackPParRatio[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackSip2dVal,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackSip2dVal[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackSip2dSig,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackSip2dSig[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackSip3dVal,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackSip3dVal[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackSip3dSig,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackSip3dSig[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackDecayLenVal,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackDecayLenVal[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackDecayLenSig,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackDecayLenSig[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackJetDistVal,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackJetDistVal[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackJetDistSig,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackJetDistSig[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackChi2,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackChi2[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackNTotalHits,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackNTotalHits[JetInfo[iJetColl].nTrkTagVar] );
+	    tagValList = ipVars.getList(reco::btau::trackNPixelHits,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_trackNPixelHits[JetInfo[iJetColl].nTrkTagVar] );
 
-      JetInfo[iJetColl].nTrkTagVar += nTracks;
-      JetInfo[iJetColl].Jet_nLastTrkTagVar[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nTrkTagVar;
+	    JetInfo[iJetColl].nTrkTagVar += nTracks;
+	    JetInfo[iJetColl].Jet_nLastTrkTagVar[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nTrkTagVar;
 
-      // per jet per secondary vertex
-      JetInfo[iJetColl].Jet_nFirstSVTagVar[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nSVTagVar;
+	    // per jet per secondary vertex
+	    JetInfo[iJetColl].Jet_nFirstSVTagVar[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nSVTagVar;
 
-      for(int svIdx=0; svIdx < nSVs; ++svIdx)
-      {
-        JetInfo[iJetColl].TagVar_vertexMass[JetInfo[iJetColl].nSVTagVar + svIdx]    = svTagInfo->secondaryVertex(svIdx).p4().mass();
-        //JetInfo[iJetColl].TagVar_vertexNTracks[JetInfo[iJetColl].nSVTagVar + svIdx] = svTagInfo->secondaryVertex(svIdx).nTracks();
-      }
-      tagValList = svVars.getList(reco::btau::vertexJetDeltaR,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_vertexJetDeltaR[JetInfo[iJetColl].nSVTagVar] );
-      tagValList = svVars.getList(reco::btau::flightDistance2dVal,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_flightDistance2dVal[JetInfo[iJetColl].nSVTagVar] );
-      tagValList = svVars.getList(reco::btau::flightDistance2dSig,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_flightDistance2dSig[JetInfo[iJetColl].nSVTagVar] );
-      tagValList = svVars.getList(reco::btau::flightDistance3dVal,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_flightDistance3dVal[JetInfo[iJetColl].nSVTagVar] );
-      tagValList = svVars.getList(reco::btau::flightDistance3dSig,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_flightDistance3dSig[JetInfo[iJetColl].nSVTagVar] );
+	    for(int svIdx=0; svIdx < nSVs; ++svIdx)
+	    {
+		    JetInfo[iJetColl].TagVar_vertexMass[JetInfo[iJetColl].nSVTagVar + svIdx]    = svTagInfo->secondaryVertex(svIdx).p4().mass();
+		    //JetInfo[iJetColl].TagVar_vertexNTracks[JetInfo[iJetColl].nSVTagVar + svIdx] = svTagInfo->secondaryVertex(svIdx).nTracks();
+	    }
+	    tagValList = svVars.getList(reco::btau::vertexJetDeltaR,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_vertexJetDeltaR[JetInfo[iJetColl].nSVTagVar] );
+	    tagValList = svVars.getList(reco::btau::flightDistance2dVal,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_flightDistance2dVal[JetInfo[iJetColl].nSVTagVar] );
+	    tagValList = svVars.getList(reco::btau::flightDistance2dSig,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_flightDistance2dSig[JetInfo[iJetColl].nSVTagVar] );
+	    tagValList = svVars.getList(reco::btau::flightDistance3dVal,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_flightDistance3dVal[JetInfo[iJetColl].nSVTagVar] );
+	    tagValList = svVars.getList(reco::btau::flightDistance3dSig,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVar_flightDistance3dSig[JetInfo[iJetColl].nSVTagVar] );
 
-      JetInfo[iJetColl].nSVTagVar += nSVs;
-      JetInfo[iJetColl].Jet_nLastSVTagVar[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nSVTagVar;
+	    JetInfo[iJetColl].nSVTagVar += nSVs;
+	    JetInfo[iJetColl].Jet_nLastSVTagVar[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nSVTagVar;
     }
 
     // CSV TaggingVariables
     if ( storeCSVTagVariables )
     {
-      std::vector<const reco::BaseTagInfo*>  baseTagInfos;
-      JetTagComputer::TagInfoHelper helper(baseTagInfos);
-      baseTagInfos.push_back( ipTagInfo );
-      baseTagInfos.push_back( svTagInfo );
-      // TaggingVariables
-      reco::TaggingVariableList vars = computer->taggingVariables(helper);
+	    std::vector<const reco::BaseTagInfo*>  baseTagInfos;
+	    JetTagComputer::TagInfoHelper helper(baseTagInfos);
+	    baseTagInfos.push_back( ipTagInfo );
+	    baseTagInfos.push_back( svTagInfo );
+	    // TaggingVariables
+	    reco::TaggingVariableList vars = computer->taggingVariables(helper);
 
-      // per jet
-      JetInfo[iJetColl].TagVarCSV_trackJetPt[JetInfo[iJetColl].nJet]                  = ( vars.checkTag(reco::btau::trackJetPt) ? vars.get(reco::btau::trackJetPt) : -9999 );
-      JetInfo[iJetColl].TagVarCSV_vertexCategory[JetInfo[iJetColl].nJet]              = ( vars.checkTag(reco::btau::vertexCategory) ? vars.get(reco::btau::vertexCategory) : -9999 );
-      JetInfo[iJetColl].TagVarCSV_jetNSecondaryVertices[JetInfo[iJetColl].nJet]       = ( vars.checkTag(reco::btau::jetNSecondaryVertices) ? vars.get(reco::btau::jetNSecondaryVertices) : 0 );
-      JetInfo[iJetColl].TagVarCSV_trackSumJetEtRatio[JetInfo[iJetColl].nJet]          = ( vars.checkTag(reco::btau::trackSumJetEtRatio) ? vars.get(reco::btau::trackSumJetEtRatio) : -9999 );
-      JetInfo[iJetColl].TagVarCSV_trackSumJetDeltaR[JetInfo[iJetColl].nJet]           = ( vars.checkTag(reco::btau::trackSumJetDeltaR) ? vars.get(reco::btau::trackSumJetDeltaR) : -9999 );
-      JetInfo[iJetColl].TagVarCSV_trackSip2dValAboveCharm[JetInfo[iJetColl].nJet]     = ( vars.checkTag(reco::btau::trackSip2dValAboveCharm) ? vars.get(reco::btau::trackSip2dValAboveCharm) : -9999 );
-      JetInfo[iJetColl].TagVarCSV_trackSip2dSigAboveCharm[JetInfo[iJetColl].nJet]     = ( vars.checkTag(reco::btau::trackSip2dSigAboveCharm) ? vars.get(reco::btau::trackSip2dSigAboveCharm) : -9999 );
-      JetInfo[iJetColl].TagVarCSV_trackSip3dValAboveCharm[JetInfo[iJetColl].nJet]     = ( vars.checkTag(reco::btau::trackSip3dValAboveCharm) ? vars.get(reco::btau::trackSip3dValAboveCharm) : -9999 );
-      JetInfo[iJetColl].TagVarCSV_trackSip3dSigAboveCharm[JetInfo[iJetColl].nJet]     = ( vars.checkTag(reco::btau::trackSip3dSigAboveCharm) ? vars.get(reco::btau::trackSip3dSigAboveCharm) : -9999 );
-      JetInfo[iJetColl].TagVarCSV_vertexMass[JetInfo[iJetColl].nJet]                  = ( vars.checkTag(reco::btau::vertexMass) ? vars.get(reco::btau::vertexMass) : -9999 );
-      JetInfo[iJetColl].TagVarCSV_vertexNTracks[JetInfo[iJetColl].nJet]               = ( vars.checkTag(reco::btau::vertexNTracks) ? vars.get(reco::btau::vertexNTracks) : 0 );
-      JetInfo[iJetColl].TagVarCSV_vertexEnergyRatio[JetInfo[iJetColl].nJet]           = ( vars.checkTag(reco::btau::vertexEnergyRatio) ? vars.get(reco::btau::vertexEnergyRatio) : -9999 );
-      JetInfo[iJetColl].TagVarCSV_vertexJetDeltaR[JetInfo[iJetColl].nJet]             = ( vars.checkTag(reco::btau::vertexJetDeltaR) ? vars.get(reco::btau::vertexJetDeltaR) : -9999 );
-      JetInfo[iJetColl].TagVarCSV_flightDistance2dVal[JetInfo[iJetColl].nJet]         = ( vars.checkTag(reco::btau::flightDistance2dVal) ? vars.get(reco::btau::flightDistance2dVal) : -9999 );
-      JetInfo[iJetColl].TagVarCSV_flightDistance2dSig[JetInfo[iJetColl].nJet]         = ( vars.checkTag(reco::btau::flightDistance2dSig) ? vars.get(reco::btau::flightDistance2dSig) : -9999 );
-      JetInfo[iJetColl].TagVarCSV_flightDistance3dVal[JetInfo[iJetColl].nJet]         = ( vars.checkTag(reco::btau::flightDistance3dVal) ? vars.get(reco::btau::flightDistance3dVal) : -9999 );
-      JetInfo[iJetColl].TagVarCSV_flightDistance3dSig[JetInfo[iJetColl].nJet]         = ( vars.checkTag(reco::btau::flightDistance3dSig) ? vars.get(reco::btau::flightDistance3dSig) : -9999 );
+	    // per jet
+	    JetInfo[iJetColl].TagVarCSV_trackJetPt[JetInfo[iJetColl].nJet]                  = ( vars.checkTag(reco::btau::trackJetPt) ? vars.get(reco::btau::trackJetPt) : -9999 );
+	    JetInfo[iJetColl].TagVarCSV_vertexCategory[JetInfo[iJetColl].nJet]              = ( vars.checkTag(reco::btau::vertexCategory) ? vars.get(reco::btau::vertexCategory) : -9999 );
+	    JetInfo[iJetColl].TagVarCSV_jetNSecondaryVertices[JetInfo[iJetColl].nJet]       = ( vars.checkTag(reco::btau::jetNSecondaryVertices) ? vars.get(reco::btau::jetNSecondaryVertices) : 0 );
+	    JetInfo[iJetColl].TagVarCSV_trackSumJetEtRatio[JetInfo[iJetColl].nJet]          = ( vars.checkTag(reco::btau::trackSumJetEtRatio) ? vars.get(reco::btau::trackSumJetEtRatio) : -9999 );
+	    JetInfo[iJetColl].TagVarCSV_trackSumJetDeltaR[JetInfo[iJetColl].nJet]           = ( vars.checkTag(reco::btau::trackSumJetDeltaR) ? vars.get(reco::btau::trackSumJetDeltaR) : -9999 );
+	    JetInfo[iJetColl].TagVarCSV_trackSip2dValAboveCharm[JetInfo[iJetColl].nJet]     = ( vars.checkTag(reco::btau::trackSip2dValAboveCharm) ? vars.get(reco::btau::trackSip2dValAboveCharm) : -9999 );
+	    JetInfo[iJetColl].TagVarCSV_trackSip2dSigAboveCharm[JetInfo[iJetColl].nJet]     = ( vars.checkTag(reco::btau::trackSip2dSigAboveCharm) ? vars.get(reco::btau::trackSip2dSigAboveCharm) : -9999 );
+	    JetInfo[iJetColl].TagVarCSV_trackSip3dValAboveCharm[JetInfo[iJetColl].nJet]     = ( vars.checkTag(reco::btau::trackSip3dValAboveCharm) ? vars.get(reco::btau::trackSip3dValAboveCharm) : -9999 );
+	    JetInfo[iJetColl].TagVarCSV_trackSip3dSigAboveCharm[JetInfo[iJetColl].nJet]     = ( vars.checkTag(reco::btau::trackSip3dSigAboveCharm) ? vars.get(reco::btau::trackSip3dSigAboveCharm) : -9999 );
+	    JetInfo[iJetColl].TagVarCSV_vertexMass[JetInfo[iJetColl].nJet]                  = ( vars.checkTag(reco::btau::vertexMass) ? vars.get(reco::btau::vertexMass) : -9999 );
+	    JetInfo[iJetColl].TagVarCSV_vertexNTracks[JetInfo[iJetColl].nJet]               = ( vars.checkTag(reco::btau::vertexNTracks) ? vars.get(reco::btau::vertexNTracks) : 0 );
+	    JetInfo[iJetColl].TagVarCSV_vertexEnergyRatio[JetInfo[iJetColl].nJet]           = ( vars.checkTag(reco::btau::vertexEnergyRatio) ? vars.get(reco::btau::vertexEnergyRatio) : -9999 );
+	    JetInfo[iJetColl].TagVarCSV_vertexJetDeltaR[JetInfo[iJetColl].nJet]             = ( vars.checkTag(reco::btau::vertexJetDeltaR) ? vars.get(reco::btau::vertexJetDeltaR) : -9999 );
+	    JetInfo[iJetColl].TagVarCSV_flightDistance2dVal[JetInfo[iJetColl].nJet]         = ( vars.checkTag(reco::btau::flightDistance2dVal) ? vars.get(reco::btau::flightDistance2dVal) : -9999 );
+	    JetInfo[iJetColl].TagVarCSV_flightDistance2dSig[JetInfo[iJetColl].nJet]         = ( vars.checkTag(reco::btau::flightDistance2dSig) ? vars.get(reco::btau::flightDistance2dSig) : -9999 );
+	    JetInfo[iJetColl].TagVarCSV_flightDistance3dVal[JetInfo[iJetColl].nJet]         = ( vars.checkTag(reco::btau::flightDistance3dVal) ? vars.get(reco::btau::flightDistance3dVal) : -9999 );
+	    JetInfo[iJetColl].TagVarCSV_flightDistance3dSig[JetInfo[iJetColl].nJet]         = ( vars.checkTag(reco::btau::flightDistance3dSig) ? vars.get(reco::btau::flightDistance3dSig) : -9999 );
 
-      // per jet per track
-      JetInfo[iJetColl].Jet_nFirstTrkTagVarCSV[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nTrkTagVarCSV;
-      std::vector<float> tagValList = vars.getList(reco::btau::trackSip2dSig,false);
-      JetInfo[iJetColl].TagVarCSV_jetNTracks[JetInfo[iJetColl].nJet] = tagValList.size();
+	    // per jet per track
+	    JetInfo[iJetColl].Jet_nFirstTrkTagVarCSV[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nTrkTagVarCSV;
+	    std::vector<float> tagValList = vars.getList(reco::btau::trackSip2dSig,false);
+	    JetInfo[iJetColl].TagVarCSV_jetNTracks[JetInfo[iJetColl].nJet] = tagValList.size();
 
-      tagValList = vars.getList(reco::btau::trackMomentum,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackMomentum[JetInfo[iJetColl].nTrkTagVarCSV] );
-      tagValList = vars.getList(reco::btau::trackEta,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackEta[JetInfo[iJetColl].nTrkTagVarCSV] );
-      tagValList = vars.getList(reco::btau::trackPhi,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackPhi[JetInfo[iJetColl].nTrkTagVarCSV] );
-      tagValList = vars.getList(reco::btau::trackPtRel,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackPtRel[JetInfo[iJetColl].nTrkTagVarCSV] );
-      tagValList = vars.getList(reco::btau::trackPPar,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackPPar[JetInfo[iJetColl].nTrkTagVarCSV] );
-      tagValList = vars.getList(reco::btau::trackDeltaR,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackDeltaR[JetInfo[iJetColl].nTrkTagVarCSV] );
-      tagValList = vars.getList(reco::btau::trackPtRatio,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackPtRatio[JetInfo[iJetColl].nTrkTagVarCSV] );
-      tagValList = vars.getList(reco::btau::trackPParRatio,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackPParRatio[JetInfo[iJetColl].nTrkTagVarCSV] );
-      tagValList = vars.getList(reco::btau::trackSip2dVal,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackSip2dVal[JetInfo[iJetColl].nTrkTagVarCSV] );
-      tagValList = vars.getList(reco::btau::trackSip2dSig,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackSip2dSig[JetInfo[iJetColl].nTrkTagVarCSV] );
-      tagValList = vars.getList(reco::btau::trackSip3dVal,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackSip3dVal[JetInfo[iJetColl].nTrkTagVarCSV] );
-      tagValList = vars.getList(reco::btau::trackSip3dSig,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackSip3dSig[JetInfo[iJetColl].nTrkTagVarCSV] );
-      tagValList = vars.getList(reco::btau::trackDecayLenVal,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackDecayLenVal[JetInfo[iJetColl].nTrkTagVarCSV] );
-      tagValList = vars.getList(reco::btau::trackDecayLenSig,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackDecayLenSig[JetInfo[iJetColl].nTrkTagVarCSV] );
-      tagValList = vars.getList(reco::btau::trackJetDistVal,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackJetDistVal[JetInfo[iJetColl].nTrkTagVarCSV] );
-      tagValList = vars.getList(reco::btau::trackJetDistSig,false);
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackJetDistSig[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackMomentum,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackMomentum[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackEta,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackEta[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackPhi,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackPhi[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackPtRel,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackPtRel[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackPPar,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackPPar[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackDeltaR,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackDeltaR[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackPtRatio,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackPtRatio[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackPParRatio,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackPParRatio[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackSip2dVal,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackSip2dVal[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackSip2dSig,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackSip2dSig[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackSip3dVal,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackSip3dVal[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackSip3dSig,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackSip3dSig[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackDecayLenVal,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackDecayLenVal[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackDecayLenSig,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackDecayLenSig[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackJetDistVal,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackJetDistVal[JetInfo[iJetColl].nTrkTagVarCSV] );
+	    tagValList = vars.getList(reco::btau::trackJetDistSig,false);
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackJetDistSig[JetInfo[iJetColl].nTrkTagVarCSV] );
 
-      JetInfo[iJetColl].nTrkTagVarCSV += JetInfo[iJetColl].TagVarCSV_jetNTracks[JetInfo[iJetColl].nJet];
-      JetInfo[iJetColl].Jet_nLastTrkTagVarCSV[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nTrkTagVarCSV;
-      //---------------------------
-      JetInfo[iJetColl].Jet_nFirstTrkEtaRelTagVarCSV[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nTrkEtaRelTagVarCSV;
-      tagValList = vars.getList(reco::btau::trackEtaRel,false);
-      JetInfo[iJetColl].TagVarCSV_jetNTracksEtaRel[JetInfo[iJetColl].nJet] = tagValList.size();
+	    JetInfo[iJetColl].nTrkTagVarCSV += JetInfo[iJetColl].TagVarCSV_jetNTracks[JetInfo[iJetColl].nJet];
+	    JetInfo[iJetColl].Jet_nLastTrkTagVarCSV[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nTrkTagVarCSV;
+	    //---------------------------
+	    JetInfo[iJetColl].Jet_nFirstTrkEtaRelTagVarCSV[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nTrkEtaRelTagVarCSV;
+	    tagValList = vars.getList(reco::btau::trackEtaRel,false);
+	    JetInfo[iJetColl].TagVarCSV_jetNTracksEtaRel[JetInfo[iJetColl].nJet] = tagValList.size();
 
-      if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackEtaRel[JetInfo[iJetColl].nTrkEtaRelTagVarCSV] );
+	    if(tagValList.size()>0) std::copy( tagValList.begin(), tagValList.end(), &JetInfo[iJetColl].TagVarCSV_trackEtaRel[JetInfo[iJetColl].nTrkEtaRelTagVarCSV] );
 
-      JetInfo[iJetColl].nTrkEtaRelTagVarCSV += JetInfo[iJetColl].TagVarCSV_jetNTracksEtaRel[JetInfo[iJetColl].nJet];
-      JetInfo[iJetColl].Jet_nLastTrkEtaRelTagVarCSV[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nTrkEtaRelTagVarCSV;
+	    JetInfo[iJetColl].nTrkEtaRelTagVarCSV += JetInfo[iJetColl].TagVarCSV_jetNTracksEtaRel[JetInfo[iJetColl].nJet];
+	    JetInfo[iJetColl].Jet_nLastTrkEtaRelTagVarCSV[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nTrkEtaRelTagVarCSV;
 
-      //store track input
-      //
-      double trackSip3dSig_3, trackSip3dSig_0, trackSip3dSig_1,trackSip3dSig_2, trackEtaRel_0,trackEtaRel_1,trackEtaRel_2;
-      std::vector<float> IP3Ds, etaRels;
-      for (int iTrk = JetInfo[iJetColl].Jet_nFirstTrkTagVarCSV[JetInfo[iJetColl].nJet]; iTrk < JetInfo[iJetColl].Jet_nLastTrkTagVarCSV[JetInfo[iJetColl].nJet]; ++iTrk){
-              IP3Ds.push_back( JetInfo[iJetColl].TagVarCSV_trackSip3dSig[iTrk] );
-      }
-      for (int iTrk = JetInfo[iJetColl].Jet_nFirstTrkEtaRelTagVarCSV[JetInfo[iJetColl].nJet]; iTrk < JetInfo[iJetColl].Jet_nLastTrkEtaRelTagVarCSV[JetInfo[iJetColl].nJet]; ++iTrk){
-                                        etaRels.push_back( TMath::Abs(JetInfo[iJetColl].TagVarCSV_trackEtaRel[iTrk]) );
-      }
-      double dummyTrack = 99.;
-      int numTracks = JetInfo[iJetColl].TagVarCSV_jetNTracks[JetInfo[iJetColl].nJet];
-      int numEtaRelTracks = JetInfo[iJetColl].TagVarCSV_jetNTracksEtaRel[JetInfo[iJetColl].nJet];
-      float dummyEtaRel = 99.;
-
-
-      std::sort( IP3Ds.begin(),IP3Ds.end(),std::greater<float>() );
-      std::sort( etaRels.begin(),etaRels.end() ); //std::sort sorts in ascending order by default
-
-                                switch(numTracks){
-                                        case 0:
+	    //store track input
+	    //
+	    double trackSip3dSig_3, trackSip3dSig_0, trackSip3dSig_1,trackSip3dSig_2, trackEtaRel_0,trackEtaRel_1,trackEtaRel_2;
+	    std::vector<float> IP3Ds, etaRels;
+	    for (int iTrk = JetInfo[iJetColl].Jet_nFirstTrkTagVarCSV[JetInfo[iJetColl].nJet]; iTrk < JetInfo[iJetColl].Jet_nLastTrkTagVarCSV[JetInfo[iJetColl].nJet]; ++iTrk){
+		    IP3Ds.push_back( JetInfo[iJetColl].TagVarCSV_trackSip3dSig[iTrk] );
+	    }
+	    for (int iTrk = JetInfo[iJetColl].Jet_nFirstTrkEtaRelTagVarCSV[JetInfo[iJetColl].nJet]; iTrk < JetInfo[iJetColl].Jet_nLastTrkEtaRelTagVarCSV[JetInfo[iJetColl].nJet]; ++iTrk){
+		    etaRels.push_back( TMath::Abs(JetInfo[iJetColl].TagVarCSV_trackEtaRel[iTrk]) );
+	    }
+	    double dummyTrack = 99.;
+	    int numTracks = JetInfo[iJetColl].TagVarCSV_jetNTracks[JetInfo[iJetColl].nJet];
+	    int numEtaRelTracks = JetInfo[iJetColl].TagVarCSV_jetNTracksEtaRel[JetInfo[iJetColl].nJet];
+	    float dummyEtaRel = 99.;
 
 
-                                                trackSip3dSig_0 = dummyTrack;
-                                                trackSip3dSig_1 = dummyTrack;
-                                                trackSip3dSig_2 = dummyTrack;
-                                                trackSip3dSig_3 = dummyTrack;
+	    std::sort( IP3Ds.begin(),IP3Ds.end(),std::greater<float>() );
+	    std::sort( etaRels.begin(),etaRels.end() ); //std::sort sorts in ascending order by default
 
-                                                break;
-
-                                        case 1:
-
-                                                trackSip3dSig_0 = IP3Ds.at(0);
-                                                trackSip3dSig_1 = dummyTrack;
-                                                trackSip3dSig_2 = dummyTrack;
-                                                trackSip3dSig_3 = dummyTrack;
-
-                                                break;
-
-                                        case 2:
-
-                                                trackSip3dSig_0 = IP3Ds.at(0);
-                                                trackSip3dSig_1 = IP3Ds.at(1);
-                                                trackSip3dSig_2 = dummyTrack;
-                                                trackSip3dSig_3 = dummyTrack;
-
-                                               break;
-
-                                        case 3:
-
-                                                trackSip3dSig_0 = IP3Ds.at(0);
-                                                trackSip3dSig_1 = IP3Ds.at(1);
-                                                trackSip3dSig_2 = IP3Ds.at(2);
-                                                trackSip3dSig_3 = dummyTrack;
-
-                                                break;
-
-                                        default:
-
-                                                trackSip3dSig_0 = IP3Ds.at(0);
-                                                trackSip3dSig_1 = IP3Ds.at(1);
-                                                trackSip3dSig_2 = IP3Ds.at(2);
-                                                trackSip3dSig_3 = IP3Ds.at(3);
-
-                                 }
-
-                                switch(numEtaRelTracks){
-                                        case 0:
-
-                                                trackEtaRel_0 = dummyEtaRel;
-                                                trackEtaRel_1 = dummyEtaRel;
-                                                trackEtaRel_2 = dummyEtaRel;
-
-                                                break;
-
-                                        case 1:
-
-                                                trackEtaRel_0 = etaRels.at(0);
-                                                trackEtaRel_1 = dummyEtaRel;
-                                                trackEtaRel_2 = dummyEtaRel;
-
-                                                break;
-
-                                        case 2:
-
-                                                trackEtaRel_0 = etaRels.at(0);
-                                                trackEtaRel_1 = etaRels.at(1);
-                                                trackEtaRel_2 = dummyEtaRel;
-
-                                                break;
-
-                                        default:
-
-                                                trackEtaRel_0 = etaRels.at(0);
-                                                trackEtaRel_1 = etaRels.at(1);
-                                                trackEtaRel_2 = etaRels.at(2);
-
-                                }
+	    switch(numTracks){
+		    case 0:
 
 
+			    trackSip3dSig_0 = dummyTrack;
+			    trackSip3dSig_1 = dummyTrack;
+			    trackSip3dSig_2 = dummyTrack;
+			    trackSip3dSig_3 = dummyTrack;
 
-       JetInfo[iJetColl].Jet_trackSip3dSig_3[JetInfo[iJetColl].nJet] =trackSip3dSig_3;
-       JetInfo[iJetColl].Jet_trackSip3dSig_2[JetInfo[iJetColl].nJet] =trackSip3dSig_2;
-       JetInfo[iJetColl].Jet_trackSip3dSig_1[JetInfo[iJetColl].nJet] =trackSip3dSig_1;
-       JetInfo[iJetColl].Jet_trackSip3dSig_0[JetInfo[iJetColl].nJet] =trackSip3dSig_0;
-       JetInfo[iJetColl].Jet_trackEtaRel_2[JetInfo[iJetColl].nJet] =trackEtaRel_2;
-       JetInfo[iJetColl].Jet_trackEtaRel_1[JetInfo[iJetColl].nJet] =trackEtaRel_1;
-       JetInfo[iJetColl].Jet_trackEtaRel_0[JetInfo[iJetColl].nJet] =trackEtaRel_0;
+			    break;
+
+		    case 1:
+
+			    trackSip3dSig_0 = IP3Ds.at(0);
+			    trackSip3dSig_1 = dummyTrack;
+			    trackSip3dSig_2 = dummyTrack;
+			    trackSip3dSig_3 = dummyTrack;
+
+			    break;
+
+		    case 2:
+
+			    trackSip3dSig_0 = IP3Ds.at(0);
+			    trackSip3dSig_1 = IP3Ds.at(1);
+			    trackSip3dSig_2 = dummyTrack;
+			    trackSip3dSig_3 = dummyTrack;
+
+			    break;
+
+		    case 3:
+
+			    trackSip3dSig_0 = IP3Ds.at(0);
+			    trackSip3dSig_1 = IP3Ds.at(1);
+			    trackSip3dSig_2 = IP3Ds.at(2);
+			    trackSip3dSig_3 = dummyTrack;
+
+			    break;
+
+		    default:
+
+			    trackSip3dSig_0 = IP3Ds.at(0);
+			    trackSip3dSig_1 = IP3Ds.at(1);
+			    trackSip3dSig_2 = IP3Ds.at(2);
+			    trackSip3dSig_3 = IP3Ds.at(3);
+
+	    }
+
+	    switch(numEtaRelTracks){
+		    case 0:
+
+			    trackEtaRel_0 = dummyEtaRel;
+			    trackEtaRel_1 = dummyEtaRel;
+			    trackEtaRel_2 = dummyEtaRel;
+
+			    break;
+
+		    case 1:
+
+			    trackEtaRel_0 = etaRels.at(0);
+			    trackEtaRel_1 = dummyEtaRel;
+			    trackEtaRel_2 = dummyEtaRel;
+
+			    break;
+
+		    case 2:
+
+			    trackEtaRel_0 = etaRels.at(0);
+			    trackEtaRel_1 = etaRels.at(1);
+			    trackEtaRel_2 = dummyEtaRel;
+
+			    break;
+
+		    default:
+
+			    trackEtaRel_0 = etaRels.at(0);
+			    trackEtaRel_1 = etaRels.at(1);
+			    trackEtaRel_2 = etaRels.at(2);
+
+	    }
+
+	    JetInfo[iJetColl].Jet_trackSip3dSig_3[JetInfo[iJetColl].nJet] =trackSip3dSig_3;
+	    JetInfo[iJetColl].Jet_trackSip3dSig_2[JetInfo[iJetColl].nJet] =trackSip3dSig_2;
+	    JetInfo[iJetColl].Jet_trackSip3dSig_1[JetInfo[iJetColl].nJet] =trackSip3dSig_1;
+	    JetInfo[iJetColl].Jet_trackSip3dSig_0[JetInfo[iJetColl].nJet] =trackSip3dSig_0;
+	    JetInfo[iJetColl].Jet_trackEtaRel_2[JetInfo[iJetColl].nJet] =trackEtaRel_2;
+	    JetInfo[iJetColl].Jet_trackEtaRel_1[JetInfo[iJetColl].nJet] =trackEtaRel_1;
+	    JetInfo[iJetColl].Jet_trackEtaRel_0[JetInfo[iJetColl].nJet] =trackEtaRel_0;
+
+
     }
 
     //*****************************************************************
@@ -1640,160 +1668,291 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
     std::map<double, size_t> VTXmap;
     reco::TrackKinematics tau1Kinematics;
     reco::TrackKinematics tau2Kinematics;
+    std::vector<float> EtaRel_tau1, EtaRel_tau2;	
+    JetInfo[iJetColl].tau2_vertexDeltaR[JetInfo[iJetColl].nJet]    = -3;
+    JetInfo[iJetColl].tau1_vertexDeltaR[JetInfo[iJetColl].nJet]    = -3;
+    JetInfo[iJetColl].tau1_vertexNtrk[JetInfo[iJetColl].nJet]    = 0.;
+    JetInfo[iJetColl].tau2_vertexNtrk[JetInfo[iJetColl].nJet]    = 0.; 
 
     for (size_t vtx = 0; vtx < (size_t)JetInfo[iJetColl].Jet_SV_multi[JetInfo[iJetColl].nJet]; ++vtx)
     {
 
-      JetInfo[iJetColl].SV_x[JetInfo[iJetColl].nSV]    = position(svTagInfo->secondaryVertex(vtx)).x();
-      JetInfo[iJetColl].SV_y[JetInfo[iJetColl].nSV]    = position(svTagInfo->secondaryVertex(vtx)).y();
-      JetInfo[iJetColl].SV_z[JetInfo[iJetColl].nSV]    = position(svTagInfo->secondaryVertex(vtx)).z();
-      JetInfo[iJetColl].SV_ex[JetInfo[iJetColl].nSV]   = xError(svTagInfo->secondaryVertex(vtx));
-      JetInfo[iJetColl].SV_ey[JetInfo[iJetColl].nSV]   = yError(svTagInfo->secondaryVertex(vtx));
-      JetInfo[iJetColl].SV_ez[JetInfo[iJetColl].nSV]   = zError(svTagInfo->secondaryVertex(vtx));
-      JetInfo[iJetColl].SV_chi2[JetInfo[iJetColl].nSV] = chi2(svTagInfo->secondaryVertex(vtx));
-      JetInfo[iJetColl].SV_ndf[JetInfo[iJetColl].nSV]  = ndof(svTagInfo->secondaryVertex(vtx));
+	    JetInfo[iJetColl].SV_x[JetInfo[iJetColl].nSV]    = position(svTagInfo->secondaryVertex(vtx)).x();
+	    JetInfo[iJetColl].SV_y[JetInfo[iJetColl].nSV]    = position(svTagInfo->secondaryVertex(vtx)).y();
+	    JetInfo[iJetColl].SV_z[JetInfo[iJetColl].nSV]    = position(svTagInfo->secondaryVertex(vtx)).z();
+	    JetInfo[iJetColl].SV_ex[JetInfo[iJetColl].nSV]   = xError(svTagInfo->secondaryVertex(vtx));
+	    JetInfo[iJetColl].SV_ey[JetInfo[iJetColl].nSV]   = yError(svTagInfo->secondaryVertex(vtx));
+	    JetInfo[iJetColl].SV_ez[JetInfo[iJetColl].nSV]   = zError(svTagInfo->secondaryVertex(vtx));
+	    JetInfo[iJetColl].SV_chi2[JetInfo[iJetColl].nSV] = chi2(svTagInfo->secondaryVertex(vtx));
+	    JetInfo[iJetColl].SV_ndf[JetInfo[iJetColl].nSV]  = ndof(svTagInfo->secondaryVertex(vtx));
 
-      JetInfo[iJetColl].SV_flight[JetInfo[iJetColl].nSV]      = svTagInfo->flightDistance(vtx).value();
-      JetInfo[iJetColl].SV_flightErr[JetInfo[iJetColl].nSV]   = svTagInfo->flightDistance(vtx).error();
-      JetInfo[iJetColl].SV_flight2D[JetInfo[iJetColl].nSV]    = svTagInfo->flightDistance(vtx, true).value();
-      JetInfo[iJetColl].SV_flight2DErr[JetInfo[iJetColl].nSV] = svTagInfo->flightDistance(vtx, true).error();
-
-
-
-
-      JetInfo[iJetColl].SV_nTrk[JetInfo[iJetColl].nSV]        = nTracks(svTagInfo->secondaryVertex(vtx));
-
-
-      const Vertex &vertex = svTagInfo->secondaryVertex(vtx);
-      JetInfo[iJetColl].SV_vtx_pt[JetInfo[iJetColl].nSV]  = vertex.p4().pt();
-      JetInfo[iJetColl].SV_vtx_eta[JetInfo[iJetColl].nSV] = vertex.p4().eta();
-      JetInfo[iJetColl].SV_vtx_phi[JetInfo[iJetColl].nSV] = vertex.p4().phi();
-      JetInfo[iJetColl].SV_mass[JetInfo[iJetColl].nSV]    = vertex.p4().mass();
-
-      Int_t totcharge=0;
-      reco::TrackKinematics vertexKinematics;
-      double vtx_track_ptSum = 0.;
-      double vtx_track_ESum  = 0.;	
-      
-
-      // get the vertex kinematics and charge
-      vertexKinematicsAndChange(vertex, vertexKinematics, totcharge, vtx_track_ptSum, vtx_track_ESum);
-      JetInfo[iJetColl].tau2_vertexDeltaR[JetInfo[iJetColl].nSV]    = -3;
-      JetInfo[iJetColl].tau1_vertexDeltaR[JetInfo[iJetColl].nSV]    = -3;		 
-      /*if (currentAxes.size() > 1)
-          {
-            if (reco::deltaR2(svTagInfo->flightDirection(vtx),currentAxes[1]) < reco::deltaR2(svTagInfo->flightDirection(vtx),currentAxes[0])){
-		tau2Kinematics  = tau2Kinematics + vertexKinematics;		
-		if(JetInfo[iJetColl].tau2_vertexDeltaR[JetInfo[iJetColl].nSV]    <0) JetInfo[iJetColl].tau2_vertexDeltaR[JetInfo[iJetColl].nSV]    = reco::deltaR(svTagInfo->flightDirection(vtx),currentAxes[1]) ;
-		}
-            else{
-		tau1Kinematics = tau1Kinematics + vertexKinematics;
-		if(JetInfo[iJetColl].tau1_vertexDeltaR[JetInfo[iJetColl].nSV]    <0)JetInfo[iJetColl].tau1_vertexDeltaR[JetInfo[iJetColl].nSV]    = reco::deltaR(svTagInfo->flightDirection(vtx),currentAxes[0]) ;
-		}
-	
-          }
-       else if (currentAxes.size() > 0){
-		tau1Kinematics = tau1Kinematics + vertexKinematics;
-		if(JetInfo[iJetColl].tau2_vertexDeltaR[JetInfo[iJetColl].nSV]    <0) JetInfo[iJetColl].tau1_vertexDeltaR[JetInfo[iJetColl].nSV]    = reco::deltaR(svTagInfo->flightDirection(vtx),currentAxes[0]) ;
-		}
-*/
-      // total charge at the secondary vertex
-      JetInfo[iJetColl].SV_totCharge[JetInfo[iJetColl].nSV]=totcharge;
-
-      math::XYZTLorentzVector vertexSum = vertexKinematics.weightedVectorSum();
-      math::XYZTLorentzVector vertexSum_tighter = vertexKinematics_tighter.weightedVectorSum(); 
-      edm::RefToBase<reco::Jet> jet = ipTagInfo->jet();
-      math::XYZVector jetDir = jet->momentum().Unit();
-      GlobalVector flightDir = svTagInfo->flightDirection(vtx);
+	    JetInfo[iJetColl].SV_flight[JetInfo[iJetColl].nSV]      = svTagInfo->flightDistance(vtx).value();
+	    JetInfo[iJetColl].SV_flightErr[JetInfo[iJetColl].nSV]   = svTagInfo->flightDistance(vtx).error();
+	    JetInfo[iJetColl].SV_flight2D[JetInfo[iJetColl].nSV]    = svTagInfo->flightDistance(vtx, true).value();
+	    JetInfo[iJetColl].SV_flight2DErr[JetInfo[iJetColl].nSV] = svTagInfo->flightDistance(vtx, true).error();
 
 
 
-       	
 
-      JetInfo[iJetColl].SV_deltaR_jet[JetInfo[iJetColl].nSV]     = ( reco::deltaR(flightDir, jetDir) );
-      JetInfo[iJetColl].SV_deltaR_sum_jet[JetInfo[iJetColl].nSV] = ( reco::deltaR(vertexSum, jetDir) );
-      JetInfo[iJetColl].SV_deltaR_sum_dir[JetInfo[iJetColl].nSV] = ( reco::deltaR(vertexSum, flightDir) );
-
-      Line::PositionType pos(GlobalPoint(position(vertex).x(),position(vertex).y(),position(vertex).z()));
-      Line trackline(pos,flightDir);
-      // get the Jet  line
-      Line::PositionType pos2(GlobalPoint(pv->x(),pv->y(),pv->z()));
-      Line::DirectionType dir2(GlobalVector(jetDir.x(),jetDir.y(),jetDir.z()));
-      Line jetline(pos2,dir2);
-      // now compute the distance between the two lines
-      JetInfo[iJetColl].SV_vtxDistJetAxis[JetInfo[iJetColl].nSV] = (jetline.distance(trackline)).mag();
+	    JetInfo[iJetColl].SV_nTrk[JetInfo[iJetColl].nSV]        = nTracks(svTagInfo->secondaryVertex(vtx));
 
 
-      math::XYZTLorentzVector allSum =  allKinematics.weightedVectorSum() ; //allKinematics.vectorSum()
-      JetInfo[iJetColl].SV_EnergyRatio[JetInfo[iJetColl].nSV] = vertexSum.E() / allSum.E();
-      math::XYZTLorentzVector allSum_tighter =  allKinematics_tighter.weightedVectorSum() ; //allKinematics.vectorSum()
-      JetInfo[iJetColl].SV_EnergyRatio_pseudo[JetInfo[iJetColl].nSV] = vertexSum_tighter.E() / allSum.E();
-      JetInfo[iJetColl].SV_EnergyRatio_tighter[JetInfo[iJetColl].nSV] = vertexSum.E() / allSum_tighter.E();
-	
+	    const Vertex & vertex = svTagInfo->secondaryVertex(vtx);
+	    JetInfo[iJetColl].SV_vtx_pt[JetInfo[iJetColl].nSV]  = vertex.p4().pt();
+	    JetInfo[iJetColl].SV_vtx_eta[JetInfo[iJetColl].nSV] = vertex.p4().eta();
+	    JetInfo[iJetColl].SV_vtx_phi[JetInfo[iJetColl].nSV] = vertex.p4().phi();
+	    JetInfo[iJetColl].SV_mass[JetInfo[iJetColl].nSV]    = vertex.p4().mass();
 
-      /*double vertexMass = vertexSum.M();
-      double vertexPt2 = math::XYZVector(flightDir.x(), flightDir.y(), flightDir.z()).Cross(vertexSum).Mag2() / flightDir.mag2();
-      vertexMass = std::sqrt(vertexMass * vertexMass + vertexPt2) + std::sqrt(vertexPt2);
+	    Int_t totcharge=0;
+	    reco::TrackKinematics vertexKinematics;
+	    double vtx_track_ptSum = 0.;
+	    double vtx_track_ESum  = 0.;	
 
-
-      JetInfo[iJetColl].SV_mass_corrected[JetInfo[iJetColl].nSV]    = vertexMass;
-
-      	
+	    // get the vertex kinematics and charge
+	    vertexKinematicsAndChange(vertex, vertexKinematics, totcharge, vtx_track_ptSum, vtx_track_ESum);
 
 
-      double vertexMass_tighter = vertexSum_tighter.M();
-      double vertexPt2_tighter = math::XYZVector(flightDir.x(), flightDir.y(), flightDir.z()).Cross(vertexSum_tighter).Mag2() / flightDir.mag2();
-      vertexMass_tighter = std::sqrt(vertexMass_tighter * vertexMass_tighter + vertexPt2_tighter) + std::sqrt(vertexPt2_tighter);
+	    const std::vector<reco::CandidatePtr> & tracks = vertex.daughterPtrVector();
+	    if (currentAxes.size() > 1)
+	    {
+		    if (reco::deltaR2(svTagInfo->flightDirection(vtx),currentAxes[1]) < reco::deltaR2(svTagInfo->flightDirection(vtx),currentAxes[0])){
+			    tau2Kinematics  = tau2Kinematics + vertexKinematics;		
+			    JetInfo[iJetColl].tau2_vertexNtrk[JetInfo[iJetColl].nJet]    =nTracks(svTagInfo->secondaryVertex(vtx)) + JetInfo[iJetColl].tau2_vertexNtrk[JetInfo[iJetColl].nJet] ;
+			    math::XYZVector direction(currentAxes[1].px(), currentAxes[1].py(), currentAxes[1].pz());	
+			    if(JetInfo[iJetColl].tau2_vertexDeltaR[JetInfo[iJetColl].nJet]    <0) {
+				    JetInfo[iJetColl].tau2_vertexDeltaR[JetInfo[iJetColl].nJet]    = reco::deltaR(svTagInfo->flightDirection(vtx),currentAxes[1]) ;
+				    JetInfo[iJetColl].tau2_vertexFlightDErr[JetInfo[iJetColl].nJet]  = svTagInfo->flightDistance(vtx).error(); 	
+				    JetInfo[iJetColl].tau2_vertexFlight2DErr[JetInfo[iJetColl].nJet]  = svTagInfo->flightDistance(vtx,true).error(); 
+			    }
+			    for(std::vector<reco::CandidatePtr>::const_iterator track = tracks.begin(); track != tracks.end(); ++track) {	
+				    const reco::Track& mytrack = *(*track)->bestTrack();
+				    EtaRel_tau2.push_back(TMath::Abs(reco::btau::etaRel(direction,mytrack.momentum())));
+				    }
+
+			    
+	    }
+		    else{
+			    tau1Kinematics = tau1Kinematics + vertexKinematics;
+			    JetInfo[iJetColl].tau1_vertexNtrk[JetInfo[iJetColl].nJet]    =nTracks(svTagInfo->secondaryVertex(vtx)) + JetInfo[iJetColl].tau1_vertexNtrk[JetInfo[iJetColl].nJet] ;
+			    math::XYZVector direction(currentAxes[0].px(), currentAxes[0].py(), currentAxes[0].pz());
+			    if(JetInfo[iJetColl].tau1_vertexDeltaR[JetInfo[iJetColl].nJet]    <0){
+				    JetInfo[iJetColl].tau1_vertexDeltaR[JetInfo[iJetColl].nJet]    = reco::deltaR(svTagInfo->flightDirection(vtx),direction) ;
+				    JetInfo[iJetColl].tau1_vertexFlightDErr[JetInfo[iJetColl].nJet]  = svTagInfo->flightDistance(vtx).error(); 
+				    JetInfo[iJetColl].tau1_vertexFlight2DErr[JetInfo[iJetColl].nJet]  = svTagInfo->flightDistance(vtx,true).error();
+			    }
+			    for(std::vector<reco::CandidatePtr>::const_iterator track = tracks.begin(); track != tracks.end(); ++track) {	
+				    const reco::Track& mytrack = *(*track)->bestTrack();
+				    EtaRel_tau1.push_back(TMath::Abs(reco::btau::etaRel(direction,mytrack.momentum())));
+
+			    }		
+		    }
+
+	    }else if (currentAxes.size() > 0){
+		    tau1Kinematics = tau1Kinematics + vertexKinematics;
+		    JetInfo[iJetColl].tau1_vertexNtrk[JetInfo[iJetColl].nJet]    =nTracks(svTagInfo->secondaryVertex(vtx)) + JetInfo[iJetColl].tau1_vertexNtrk[JetInfo[iJetColl].nJet];	
+		    math::XYZVector direction(currentAxes[0].px(), currentAxes[0].py(), currentAxes[0].pz()); 	
+		    if(JetInfo[iJetColl].tau1_vertexDeltaR[JetInfo[iJetColl].nJet]    <0){
+			    JetInfo[iJetColl].tau1_vertexDeltaR[JetInfo[iJetColl].nJet]    = reco::deltaR(svTagInfo->flightDirection(vtx),currentAxes[0]) ;
+			    JetInfo[iJetColl].tau1_vertexFlightDErr[JetInfo[iJetColl].nJet]  = svTagInfo->flightDistance(vtx).error(); 
+			    JetInfo[iJetColl].tau1_vertexFlight2DErr[JetInfo[iJetColl].nJet]  = svTagInfo->flightDistance(vtx,true).error();
+		    }
+		    for(std::vector<reco::CandidatePtr>::const_iterator track = tracks.begin(); track != tracks.end(); ++track) {	
+			    const reco::Track& mytrack = *(*track)->bestTrack();	
+			    EtaRel_tau1.push_back(TMath::Abs(reco::btau::etaRel(direction,mytrack.momentum())));
+
+		    }
+
+	    }
+
+	    // total charge at the secondary vertex
+	    JetInfo[iJetColl].SV_totCharge[JetInfo[iJetColl].nSV]=totcharge;
+
+	    math::XYZTLorentzVector vertexSum = vertexKinematics.weightedVectorSum();
+	    math::XYZTLorentzVector vertexSum_tighter = vertexKinematics_tighter.weightedVectorSum(); 
+	    edm::RefToBase<reco::Jet> jet = ipTagInfo->jet();
+	    math::XYZVector jetDir = jet->momentum().Unit();
+	    GlobalVector flightDir = svTagInfo->flightDirection(vtx);
 
 
-      JetInfo[iJetColl].SV_mass_corrected_tighter[JetInfo[iJetColl].nSV]    = vertexMass_tighter;
-      std::cout<< vertexMass_tighter <<std::endl;	
-     	
-      double varPi = (vertexMass/5.2794) * (vtx_track_ESum /jet_track_ESum); // 5.2794 should be the average B meson mass of PDG! CHECK!!!
-      JetInfo[iJetColl].SV_massVertexEnergyFraction[JetInfo[iJetColl].nSV]    =  varPi;
-      double varB  = (std::sqrt(5.2794) * vtx_track_ptSum) / ( vertexMass * std::sqrt(jet->pt()));
-      JetInfo[iJetColl].SV_vertexBoostOverSqrtJetPt[JetInfo[iJetColl].nSV]    =  varB*varB/(varB*varB + 10.); 
 
-      double varPi_tighter = (vertexMass_tighter/5.2794) * (vtx_track_ESum_tighter /jet_track_ESum); // 5.2794 should be the average B meson mass of PDG! CHECK!!!
-      JetInfo[iJetColl].SV_massVertexEnergyFraction_tighter[JetInfo[iJetColl].nSV]    =  varPi_tighter;
-      double varB_tighter  = (std::sqrt(5.2794) * vtx_track_ptSum_tighter) / ( vertexMass_tighter * std::sqrt(jet->pt()));
-      JetInfo[iJetColl].SV_vertexBoostOverSqrtJetPt_tighter[JetInfo[iJetColl].nSV]    =  varB_tighter*varB_tighter/(varB_tighter*varB_tighter + 10.);
-	*/	
 
-      
-      
 
-      JetInfo[iJetColl].SV_dir_x[JetInfo[iJetColl].nSV]= flightDir.x();
-      JetInfo[iJetColl].SV_dir_y[JetInfo[iJetColl].nSV]= flightDir.y();
-      JetInfo[iJetColl].SV_dir_z[JetInfo[iJetColl].nSV]= flightDir.z();
+	    JetInfo[iJetColl].SV_deltaR_jet[JetInfo[iJetColl].nSV]     = ( reco::deltaR(flightDir, jetDir) );
+	    JetInfo[iJetColl].SV_deltaR_sum_jet[JetInfo[iJetColl].nSV] = ( reco::deltaR(vertexSum, jetDir) );
+	    JetInfo[iJetColl].SV_deltaR_sum_dir[JetInfo[iJetColl].nSV] = ( reco::deltaR(vertexSum, flightDir) );
 
-      if (runFatJets_ && iJetColl == 0 && reco::deltaR2(flightDir, jetDir)<(maxSVDeltaRToJet_*maxSVDeltaRToJet_))
-        VTXmap[vertex.p4().pt()]=vtx; //ordered according the pt
+	    Line::PositionType pos(GlobalPoint(position(vertex).x(),position(vertex).y(),position(vertex).z()));
+	    Line trackline(pos,flightDir);
+	    // get the Jet  line
+	    Line::PositionType pos2(GlobalPoint(pv->x(),pv->y(),pv->z()));
+	    Line::DirectionType dir2(GlobalVector(jetDir.x(),jetDir.y(),jetDir.z()));
+	    Line jetline(pos2,dir2);
+	    // now compute the distance between the two lines
+	    JetInfo[iJetColl].SV_vtxDistJetAxis[JetInfo[iJetColl].nSV] = (jetline.distance(trackline)).mag();
 
-      ++JetInfo[iJetColl].nSV;
+
+	    math::XYZTLorentzVector allSum =  allKinematics.weightedVectorSum() ; //allKinematics.vectorSum()
+	    JetInfo[iJetColl].SV_EnergyRatio[JetInfo[iJetColl].nSV] = vertexSum.E() / allSum.E();
+	    math::XYZTLorentzVector allSum_tighter =  allKinematics_tighter.weightedVectorSum() ; //allKinematics.vectorSum()
+	    JetInfo[iJetColl].SV_EnergyRatio_pseudo[JetInfo[iJetColl].nSV] = vertexSum_tighter.E() / allSum.E();
+	    JetInfo[iJetColl].SV_EnergyRatio_tighter[JetInfo[iJetColl].nSV] = vertexSum.E() / allSum_tighter.E();
+
+
+	    double vertexMass = vertexSum.M();
+	    double vertexPt2 = math::XYZVector(flightDir.x(), flightDir.y(), flightDir.z()).Cross(vertexSum).Mag2() / flightDir.mag2();
+	    vertexMass = std::sqrt(vertexMass * vertexMass + vertexPt2) + std::sqrt(vertexPt2);
+
+
+	    JetInfo[iJetColl].SV_mass_corrected[JetInfo[iJetColl].nSV]    = vertexMass;
+
+
+
+
+	    double vertexMass_tighter = vertexSum_tighter.M();
+	    double vertexPt2_tighter = math::XYZVector(flightDir.x(), flightDir.y(), flightDir.z()).Cross(vertexSum_tighter).Mag2() / flightDir.mag2();
+	    vertexMass_tighter = std::sqrt(vertexMass_tighter * vertexMass_tighter + vertexPt2_tighter) + std::sqrt(vertexPt2_tighter);
+
+
+	    JetInfo[iJetColl].SV_mass_corrected_tighter[JetInfo[iJetColl].nSV]    = vertexMass_tighter;
+
+	    double varPi = (vertexMass/5.2794) * (vtx_track_ESum /jet_track_ESum); // 5.2794 should be the average B meson mass of PDG! CHECK!!!
+	    JetInfo[iJetColl].SV_massVertexEnergyFraction[JetInfo[iJetColl].nSV]    =  varPi;
+	    double varB  = (std::sqrt(5.2794) * vtx_track_ptSum) / ( vertexMass * std::sqrt(jet->pt()));
+	    JetInfo[iJetColl].SV_vertexBoostOverSqrtJetPt[JetInfo[iJetColl].nSV]    =  varB*varB/(varB*varB + 10.); 
+
+	    double varPi_tighter = (vertexMass_tighter/5.2794) * (vtx_track_ESum_tighter /jet_track_ESum); // 5.2794 should be the average B meson mass of PDG! CHECK!!!
+	    JetInfo[iJetColl].SV_massVertexEnergyFraction_tighter[JetInfo[iJetColl].nSV]    =  varPi_tighter;
+	    double varB_tighter  = (std::sqrt(5.2794) * vtx_track_ptSum_tighter) / ( vertexMass_tighter * std::sqrt(jet->pt()));
+	    JetInfo[iJetColl].SV_vertexBoostOverSqrtJetPt_tighter[JetInfo[iJetColl].nSV]    =  varB_tighter*varB_tighter/(varB_tighter*varB_tighter + 10.);
+
+
+
+
+
+	    JetInfo[iJetColl].SV_dir_x[JetInfo[iJetColl].nSV]= flightDir.x();
+	    JetInfo[iJetColl].SV_dir_y[JetInfo[iJetColl].nSV]= flightDir.y();
+	    JetInfo[iJetColl].SV_dir_z[JetInfo[iJetColl].nSV]= flightDir.z();
+
+	    if (runFatJets_ && iJetColl == 0 && reco::deltaR2(flightDir, jetDir)<(maxSVDeltaRToJet_*maxSVDeltaRToJet_))
+		    VTXmap[vertex.p4().pt()]=vtx; //ordered according the pt
+
+	    ++JetInfo[iJetColl].nSV;
 
     } //// if secondary vertices present
-    JetInfo[iJetColl].Jet_nLastSV[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nSV;
+    double trackEtaRel_tau1_0,trackEtaRel_tau1_1,trackEtaRel_tau1_2, trackEtaRel_tau2_0,trackEtaRel_tau2_1,trackEtaRel_tau2_2;
+    int nEtaRel_tau2 = EtaRel_tau2.size();
+    int nEtaRel_tau1 = EtaRel_tau1.size();
+    std::sort( EtaRel_tau2.begin(),EtaRel_tau2.end() );
+    std::sort( EtaRel_tau1.begin(),EtaRel_tau1.end() );
+    float dummyEtaRel = 99.;
+
+    switch(nEtaRel_tau2){
+	    case 0:
+
+		    trackEtaRel_tau2_0 = dummyEtaRel;
+		    trackEtaRel_tau2_1 = dummyEtaRel;
+		    trackEtaRel_tau2_2 = dummyEtaRel;
+
+		    break;
+
+	    case 1:
+
+		    trackEtaRel_tau2_0 = EtaRel_tau2.at(0);
+		    trackEtaRel_tau2_1 = dummyEtaRel;
+		    trackEtaRel_tau2_2 = dummyEtaRel;
+
+		    break;
+
+	    case 2:
+
+		    trackEtaRel_tau2_0 = EtaRel_tau2.at(0);
+		    trackEtaRel_tau2_1 = EtaRel_tau2.at(1);
+		    trackEtaRel_tau2_2 = dummyEtaRel;
+
+		    break;
+
+	    default:
+
+		    trackEtaRel_tau2_0 = EtaRel_tau2.at(0);
+		    trackEtaRel_tau2_1 = EtaRel_tau2.at(1);
+		    trackEtaRel_tau2_2 = EtaRel_tau2.at(2);
+
+    }
+    switch(nEtaRel_tau1){
+	    case 0:
+
+		    trackEtaRel_tau1_0 = dummyEtaRel;
+		    trackEtaRel_tau1_1 = dummyEtaRel;
+		    trackEtaRel_tau1_2 = dummyEtaRel;
+
+		    break;
+
+	    case 1:
+
+		    trackEtaRel_tau1_0 = EtaRel_tau1.at(0);
+		    trackEtaRel_tau1_1 = dummyEtaRel;
+		    trackEtaRel_tau1_2 = dummyEtaRel;
+
+		    break;
+
+	    case 2:
+
+		    trackEtaRel_tau1_0 = EtaRel_tau1.at(0);
+		    trackEtaRel_tau1_1 = EtaRel_tau1.at(1);
+		    trackEtaRel_tau1_2 = dummyEtaRel;
+
+		    break;
+
+	    default:
+
+		    trackEtaRel_tau1_0 = EtaRel_tau1.at(0);
+		    trackEtaRel_tau1_1 = EtaRel_tau1.at(1);
+		    trackEtaRel_tau1_2 = EtaRel_tau1.at(2);
+
+    }
+
+
+    JetInfo[iJetColl].Jet_trackEtaRel_tau2_2[JetInfo[iJetColl].nJet] =trackEtaRel_tau2_2;
+    JetInfo[iJetColl].Jet_trackEtaRel_tau2_1[JetInfo[iJetColl].nJet] =trackEtaRel_tau2_1;
+    JetInfo[iJetColl].Jet_trackEtaRel_tau2_0[JetInfo[iJetColl].nJet] =trackEtaRel_tau2_0;
+    JetInfo[iJetColl].Jet_trackEtaRel_tau1_2[JetInfo[iJetColl].nJet] =trackEtaRel_tau1_2;
+    JetInfo[iJetColl].Jet_trackEtaRel_tau1_1[JetInfo[iJetColl].nJet] =trackEtaRel_tau1_1;
+    JetInfo[iJetColl].Jet_trackEtaRel_tau1_0[JetInfo[iJetColl].nJet] =trackEtaRel_tau1_0;
+    
+
+
+
+
+	    JetInfo[iJetColl].Jet_nLastSV[JetInfo[iJetColl].nJet] = JetInfo[iJetColl].nSV;
     math::XYZTLorentzVector vertexSum_tau1 = tau1Kinematics.weightedVectorSum();
-    math::XYZTLorentzVector vertexSum_tau2 = tau2Kinematics.weightedVectorSum();
     math::XYZTLorentzVector allSum =  allKinematics.weightedVectorSum() ; 
     JetInfo[iJetColl].tau1_vertexEnergyRatio[JetInfo[iJetColl].nJet] = vertexSum_tau1.E() / allSum.E();
-    JetInfo[iJetColl].tau2_vertexEnergyRatio[JetInfo[iJetColl].nJet] = vertexSum_tau2.E() / allSum.E();
+    JetInfo[iJetColl].tau2_vertexEnergyRatio[JetInfo[iJetColl].nJet] = -3;
 
 
     double vertexMass_tau1 = vertexSum_tau1.M();
     JetInfo[iJetColl].tau1_vertexMass[JetInfo[iJetColl].nJet]    = vertexMass_tau1;
-    double vertexPt2_tau1 = math::XYZVector(currentAxes[0].px(), currentAxes[0].py(), currentAxes[0].pz()).Cross(vertexSum_tau1).Mag2() / currentAxes[0].modp2();
-    vertexMass_tau1 = std::sqrt(vertexMass_tau1 * vertexMass_tau1 + vertexPt2_tau1) + std::sqrt(vertexPt2_tau1);
-    double vertexMass_tau2 = vertexSum_tau2.M();
-    JetInfo[iJetColl].tau2_vertexMass[JetInfo[iJetColl].nJet]    = vertexMass_tau2;
-    double vertexPt2_tau2 = math::XYZVector(currentAxes[1].px(), currentAxes[1].py(), currentAxes[1].pz()).Cross(vertexSum_tau2).Mag2() / currentAxes[1].modp2();
-    vertexMass_tau2 = std::sqrt(vertexMass_tau2 * vertexMass_tau2 + vertexPt2_tau2) + std::sqrt(vertexPt2_tau2);
+    if( vertexSum_tau1.M()>0){
+	    double vertexPt2_tau1 = math::XYZVector(currentAxes[0].px(), currentAxes[0].py(), currentAxes[0].pz()).Cross(vertexSum_tau1).Mag2() / currentAxes[0].modp2();
+	    vertexMass_tau1 = std::sqrt(vertexMass_tau1 * vertexMass_tau1 + vertexPt2_tau1) + std::sqrt(vertexPt2_tau1);
+	    JetInfo[iJetColl].tau1_vertexMass_corrected[JetInfo[iJetColl].nJet]    = vertexMass_tau1;
+
+    }
+    JetInfo[iJetColl].tau2_vertexMass[JetInfo[iJetColl].nJet]    = -3;
+    JetInfo[iJetColl].tau2_vertexMass_corrected[JetInfo[iJetColl].nJet]    = -3;		
+    if(currentAxes.size() > 1){
+	    math::XYZTLorentzVector vertexSum_tau2 = tau2Kinematics.weightedVectorSum();
+	    JetInfo[iJetColl].tau2_vertexEnergyRatio[JetInfo[iJetColl].nJet] = vertexSum_tau2.E() / allSum.E();
+	    double vertexMass_tau2 = vertexSum_tau2.M();
+	    JetInfo[iJetColl].tau2_vertexMass[JetInfo[iJetColl].nJet]    = vertexMass_tau2;
+	    if( vertexSum_tau2.M()>0){
+		    double vertexPt2_tau2 = math::XYZVector(currentAxes[1].px(), currentAxes[1].py(), currentAxes[1].pz()).Cross(vertexSum_tau2).Mag2() / currentAxes[1].modp2();
+		    vertexMass_tau2 = std::sqrt(vertexMass_tau2 * vertexMass_tau2 + vertexPt2_tau2) + std::sqrt(vertexPt2_tau2);
+	    }
+	    JetInfo[iJetColl].tau2_vertexMass_corrected[JetInfo[iJetColl].nJet]    = vertexMass_tau2;
+    }
 
 
-
-    JetInfo[iJetColl].tau1_vertexMass_corrected[JetInfo[iJetColl].nJet]    = vertexMass_tau1;
-    JetInfo[iJetColl].tau2_vertexMass_corrected[JetInfo[iJetColl].nJet]    = vertexMass_tau2;
 
 
 
@@ -1802,93 +1961,93 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
     float BDTG_SV = -1., BDTG_SL = -1., BDTG_Cascade = -1.; float BDTG_All = -1;
     if ( runFatJets_ && iJetColl == 0 )
     {
-      int cont=0;
-      float SV_pt_0 = -1.;
-      GlobalVector flightDir_0, flightDir_1;
-      reco::Candidate::LorentzVector SV_p4_0 , SV_p4_1;
-      for ( std::map<double, size_t>::reverse_iterator iVtx=VTXmap.rbegin(); iVtx!=VTXmap.rend(); ++iVtx)
-      {
-        ++cont;
-        const Vertex &vertex = svTagInfo->secondaryVertex(iVtx->second);
-        float SV_EnergyRatio = JetInfo[iJetColl].SV_EnergyRatio[JetInfo[iJetColl].Jet_nFirstSV[JetInfo[iJetColl].nJet]+int(iVtx->second)];
+	    int cont=0;
+	    float SV_pt_0 = -1.;
+	    GlobalVector flightDir_0, flightDir_1;
+	    reco::Candidate::LorentzVector SV_p4_0 , SV_p4_1;
+	    for ( std::map<double, size_t>::reverse_iterator iVtx=VTXmap.rbegin(); iVtx!=VTXmap.rend(); ++iVtx)
+	    {
+		    ++cont;
+		    const Vertex &vertex = svTagInfo->secondaryVertex(iVtx->second);
+		    float SV_EnergyRatio = JetInfo[iJetColl].SV_EnergyRatio[JetInfo[iJetColl].Jet_nFirstSV[JetInfo[iJetColl].nJet]+int(iVtx->second)];
 
-        if (cont==1)
-        {
-          SV_mass_0 = vertex.p4().mass()  ;
-          SV_EnergyRatio_0 = SV_EnergyRatio;
-          SV_pt_0 = vertex.p4().pt();
-          flightDir_0 = svTagInfo->flightDirection(iVtx->second);
-          SV_p4_0 = vertex.p4();
+		    if (cont==1)
+		    {
+			    SV_mass_0 = vertex.p4().mass()  ;
+			    SV_EnergyRatio_0 = SV_EnergyRatio;
+			    SV_pt_0 = vertex.p4().pt();
+			    flightDir_0 = svTagInfo->flightDirection(iVtx->second);
+			    SV_p4_0 = vertex.p4();
 
-          if (reco::deltaR2(flightDir_0,currentAxes[1])<reco::deltaR2(flightDir_0,currentAxes[0]))
-            tau_dot = (currentAxes[1].px()*flightDir_0.x()+currentAxes[1].py()*flightDir_0.y()+currentAxes[1].pz()*flightDir_0.z())/(sqrt(currentAxes[1].modp2())*flightDir_0.mag());
-          else
-            tau_dot = (currentAxes[0].px()*flightDir_0.x()+currentAxes[0].py()*flightDir_0.y()+currentAxes[0].pz()*flightDir_0.z())/(sqrt(currentAxes[0].modp2())*flightDir_0.mag());
-          z_ratio = reco::deltaR(currentAxes[1],currentAxes[0])*SV_pt_0/(SV_p4_0).mass(); //now it is defined even if we have one SV
-        }
-        if (cont==2)
-        {
-          SV_EnergyRatio_1 = SV_EnergyRatio;
-          flightDir_1 = svTagInfo->flightDirection(iVtx->second);
-          SV_p4_1 = vertex.p4();
-          z_ratio = reco::deltaR(flightDir_0,flightDir_1)*(SV_p4_1).pt()/(SV_p4_1).mass();
-          //std::cout<<z_ratio<<"  "<<reco::deltaR(flightDir_0,flightDir_1)<<"   "<<SV_pt_0<<"   "<<(SV_p4_0+SV_p4_1).mass()<<std::endl;
-          break;
-        }
-      }
+			    if (reco::deltaR2(flightDir_0,currentAxes[1])<reco::deltaR2(flightDir_0,currentAxes[0]))
+				    tau_dot = (currentAxes[1].px()*flightDir_0.x()+currentAxes[1].py()*flightDir_0.y()+currentAxes[1].pz()*flightDir_0.z())/(sqrt(currentAxes[1].modp2())*flightDir_0.mag());
+			    else
+				    tau_dot = (currentAxes[0].px()*flightDir_0.x()+currentAxes[0].py()*flightDir_0.y()+currentAxes[0].pz()*flightDir_0.z())/(sqrt(currentAxes[0].modp2())*flightDir_0.mag());
+			    z_ratio = reco::deltaR(currentAxes[1],currentAxes[0])*SV_pt_0/(SV_p4_0).mass(); //now it is defined even if we have one SV
+		    }
+		    if (cont==2)
+		    {
+			    SV_EnergyRatio_1 = SV_EnergyRatio;
+			    flightDir_1 = svTagInfo->flightDirection(iVtx->second);
+			    SV_p4_1 = vertex.p4();
+			    z_ratio = reco::deltaR(flightDir_0,flightDir_1)*(SV_p4_1).pt()/(SV_p4_1).mass();
+			    //std::cout<<z_ratio<<"  "<<reco::deltaR(flightDir_0,flightDir_1)<<"   "<<SV_pt_0<<"   "<<(SV_p4_0+SV_p4_1).mass()<<std::endl;
+			    break;
+		    }
+	    }
 
 
-      float SubJet_csv = -1 ;
-      if (pjet->hasSubjets("Pruned") && pjet->subjets("Pruned").size() > 1){
-        SubJet_csv = TMath::Min(pjet->subjets("Pruned").at(0)->bDiscriminator("pfCombinedInclusiveSecondaryVertexV2BJetTags"),pjet->subjets("Pruned").at(1)->bDiscriminator("pfCombinedInclusiveSecondaryVertexV2BJetTags"));
-      }
-      if(SubJet_csv >1. || SubJet_csv<-1.) SubJet_csv = -1;
+	    float SubJet_csv = -1 ;
+	    if (pjet->hasSubjets("Pruned") && pjet->subjets("Pruned").size() > 1){
+		    SubJet_csv = TMath::Min(pjet->subjets("Pruned").at(0)->bDiscriminator("pfCombinedInclusiveSecondaryVertexV2BJetTags"),pjet->subjets("Pruned").at(1)->bDiscriminator("pfCombinedInclusiveSecondaryVertexV2BJetTags"));
+	    }
+	    if(SubJet_csv >1. || SubJet_csv<-1.) SubJet_csv = -1;
 
-      JetInfo[iJetColl].Jet_SubJet_csv[JetInfo[iJetColl].nJet]= SubJet_csv;
+	    JetInfo[iJetColl].Jet_SubJet_csv[JetInfo[iJetColl].nJet]= SubJet_csv;
 
-      std::map<std::string,float> variables;
-      /*variables["z_ratio"] = z_ratio;
-      variables["tau_dot"] = tau_dot;
-      variables["SV_mass_0"] = SV_mass_0;
-      variables["SV_vtx_EnergyRatio_0"] = SV_EnergyRatio_0;
-      variables["SV_vtx_EnergyRatio_1"] = SV_EnergyRatio_1;
-      variables["jetNTracksEtaRel"] = JetInfo[iJetColl].TagVarCSV_jetNTracksEtaRel[JetInfo[iJetColl].nJet];
-      */
-      variables["PFLepton_ptrel"] = JetInfo[iJetColl].Jet_PFLepton_ptrel[JetInfo[iJetColl].nJet];
-      variables["PFLepton_ratio"] = JetInfo[iJetColl].Jet_PFLepton_ratio[JetInfo[iJetColl].nJet];
-      variables["nSL_3"] = (JetInfo[iJetColl].Jet_nSM[JetInfo[iJetColl].nJet] + JetInfo[iJetColl].Jet_nSE[JetInfo[iJetColl].nJet]);
-      variables["trackSip3dSig_3"] = JetInfo[iJetColl].Jet_trackSip3dSig_3[JetInfo[iJetColl].nJet];
-      variables["trackSip3dSig_0"] = JetInfo[iJetColl].Jet_trackSip3dSig_0[JetInfo[iJetColl].nJet];
-      variables["trackSip3dSig_1"] = JetInfo[iJetColl].Jet_trackSip3dSig_1[JetInfo[iJetColl].nJet];
-      variables["trackSip3dSig_2"] = JetInfo[iJetColl].Jet_trackSip3dSig_2[JetInfo[iJetColl].nJet];
-      variables["trackEtaRel_0"] = JetInfo[iJetColl].Jet_trackEtaRel_0[JetInfo[iJetColl].nJet];
-      variables["trackEtaRel_1"] = JetInfo[iJetColl].Jet_trackEtaRel_1[JetInfo[iJetColl].nJet];
-      variables["trackEtaRel_2"] = JetInfo[iJetColl].Jet_trackEtaRel_2[JetInfo[iJetColl].nJet];
-      variables["TagVarCSV1_jetNTracksEtaRel"]= JetInfo[iJetColl].TagVarCSV_jetNTracksEtaRel[JetInfo[iJetColl].nJet];
-      variables["TagVarCSV1_jetNTracks"]= JetInfo[iJetColl].TagVarCSV_jetNTracks[JetInfo[iJetColl].nJet];
-      variables["TagVarCSV1_vertexNTracks"]= JetInfo[iJetColl].TagVarCSV_vertexNTracks[JetInfo[iJetColl].nJet];
-      variables["TagVarCSV1_jetNSecondaryVertices"]= JetInfo[iJetColl].TagVarCSV_jetNSecondaryVertices[JetInfo[iJetColl].nJet];
-      variables["TagVarCSV1_trackSip2dSigAboveCharm"]= (JetInfo[iJetColl].TagVarCSV_trackSip2dSigAboveCharm[JetInfo[iJetColl].nJet]< -800. ? -99. : JetInfo[iJetColl].TagVarCSV_trackSip2dSigAboveCharm[JetInfo[iJetColl].nJet]);
-      variables["TagVarCSV1_vertexMass"]= (JetInfo[iJetColl].TagVarCSV_vertexMass[JetInfo[iJetColl].nJet]  < -800. ? -1. : JetInfo[iJetColl].TagVarCSV_vertexMass[JetInfo[iJetColl].nJet]);
-      variables["TagVarCSV1_vertexEnergyRatio"]= (JetInfo[iJetColl].TagVarCSV_vertexEnergyRatio[JetInfo[iJetColl].nJet] < -800. ? -1. :  JetInfo[iJetColl].TagVarCSV_vertexEnergyRatio[JetInfo[iJetColl].nJet] );
-      variables["TagVarCSV1_vertexJetDeltaR"]= (JetInfo[iJetColl].TagVarCSV_vertexJetDeltaR[JetInfo[iJetColl].nJet] < -800. ? -1. :  JetInfo[iJetColl].TagVarCSV_vertexJetDeltaR[JetInfo[iJetColl].nJet] );
-      variables["TagVarCSV1_flightDistance2dSig"]= (JetInfo[iJetColl].TagVarCSV_flightDistance2dSig[JetInfo[iJetColl].nJet] < -800. ? -1. : JetInfo[iJetColl].TagVarCSV_flightDistance2dSig[JetInfo[iJetColl].nJet]);
-      variables["SubJet_csv"]=SubJet_csv;
+	    std::map<std::string,float> variables;
+	    /*variables["z_ratio"] = z_ratio;
+	      variables["tau_dot"] = tau_dot;
+	      variables["SV_mass_0"] = SV_mass_0;
+	      variables["SV_vtx_EnergyRatio_0"] = SV_EnergyRatio_0;
+	      variables["SV_vtx_EnergyRatio_1"] = SV_EnergyRatio_1;
+	      variables["jetNTracksEtaRel"] = JetInfo[iJetColl].TagVarCSV_jetNTracksEtaRel[JetInfo[iJetColl].nJet];
+	      */
+	    variables["PFLepton_ptrel"] = JetInfo[iJetColl].Jet_PFLepton_ptrel[JetInfo[iJetColl].nJet];
+	    variables["PFLepton_ratio"] = JetInfo[iJetColl].Jet_PFLepton_ratio[JetInfo[iJetColl].nJet];
+	    variables["nSL_3"] = (JetInfo[iJetColl].Jet_nSM[JetInfo[iJetColl].nJet] + JetInfo[iJetColl].Jet_nSE[JetInfo[iJetColl].nJet]);
+	    variables["trackSip3dSig_3"] = JetInfo[iJetColl].Jet_trackSip3dSig_3[JetInfo[iJetColl].nJet];
+	    variables["trackSip3dSig_0"] = JetInfo[iJetColl].Jet_trackSip3dSig_0[JetInfo[iJetColl].nJet];
+	    variables["trackSip3dSig_1"] = JetInfo[iJetColl].Jet_trackSip3dSig_1[JetInfo[iJetColl].nJet];
+	    variables["trackSip3dSig_2"] = JetInfo[iJetColl].Jet_trackSip3dSig_2[JetInfo[iJetColl].nJet];
+	    variables["trackEtaRel_0"] = JetInfo[iJetColl].Jet_trackEtaRel_0[JetInfo[iJetColl].nJet];
+	    variables["trackEtaRel_1"] = JetInfo[iJetColl].Jet_trackEtaRel_1[JetInfo[iJetColl].nJet];
+	    variables["trackEtaRel_2"] = JetInfo[iJetColl].Jet_trackEtaRel_2[JetInfo[iJetColl].nJet];
+	    variables["TagVarCSV1_jetNTracksEtaRel"]= JetInfo[iJetColl].TagVarCSV_jetNTracksEtaRel[JetInfo[iJetColl].nJet];
+	    variables["TagVarCSV1_jetNTracks"]= JetInfo[iJetColl].TagVarCSV_jetNTracks[JetInfo[iJetColl].nJet];
+	    variables["TagVarCSV1_vertexNTracks"]= JetInfo[iJetColl].TagVarCSV_vertexNTracks[JetInfo[iJetColl].nJet];
+	    variables["TagVarCSV1_jetNSecondaryVertices"]= JetInfo[iJetColl].TagVarCSV_jetNSecondaryVertices[JetInfo[iJetColl].nJet];
+	    variables["TagVarCSV1_trackSip2dSigAboveCharm"]= (JetInfo[iJetColl].TagVarCSV_trackSip2dSigAboveCharm[JetInfo[iJetColl].nJet]< -800. ? -99. : JetInfo[iJetColl].TagVarCSV_trackSip2dSigAboveCharm[JetInfo[iJetColl].nJet]);
+	    variables["TagVarCSV1_vertexMass"]= (JetInfo[iJetColl].TagVarCSV_vertexMass[JetInfo[iJetColl].nJet]  < -800. ? -1. : JetInfo[iJetColl].TagVarCSV_vertexMass[JetInfo[iJetColl].nJet]);
+	    variables["TagVarCSV1_vertexEnergyRatio"]= (JetInfo[iJetColl].TagVarCSV_vertexEnergyRatio[JetInfo[iJetColl].nJet] < -800. ? -1. :  JetInfo[iJetColl].TagVarCSV_vertexEnergyRatio[JetInfo[iJetColl].nJet] );
+	    variables["TagVarCSV1_vertexJetDeltaR"]= (JetInfo[iJetColl].TagVarCSV_vertexJetDeltaR[JetInfo[iJetColl].nJet] < -800. ? -1. :  JetInfo[iJetColl].TagVarCSV_vertexJetDeltaR[JetInfo[iJetColl].nJet] );
+	    variables["TagVarCSV1_flightDistance2dSig"]= (JetInfo[iJetColl].TagVarCSV_flightDistance2dSig[JetInfo[iJetColl].nJet] < -800. ? -1. : JetInfo[iJetColl].TagVarCSV_flightDistance2dSig[JetInfo[iJetColl].nJet]);
+	    variables["SubJet_csv"]=SubJet_csv;
 
-      BDTG_SV = evaluator_SV_->evaluate(variables);
-      BDTG_SL = evaluator_SL_->evaluate(variables);
-      //float tau1 = JetInfo[iJetColl].Jet_tau1[JetInfo[iJetColl].nJet];
-      //float tau2 = JetInfo[iJetColl].Jet_tau2[JetInfo[iJetColl].nJet];
-      //float tau21 = ( tau1 != 0. ? tau2/tau1 : -1. );
+	    BDTG_SV = evaluator_SV_->evaluate(variables);
+	    BDTG_SL = evaluator_SL_->evaluate(variables);
+	    //float tau1 = JetInfo[iJetColl].Jet_tau1[JetInfo[iJetColl].nJet];
+	    //float tau2 = JetInfo[iJetColl].Jet_tau2[JetInfo[iJetColl].nJet];
+	    //float tau21 = ( tau1 != 0. ? tau2/tau1 : -1. );
 
-      std::map<std::string,float> variables_cascade;
-      variables_cascade["BDTGSV"] = BDTG_SV;
-      variables_cascade["BDTGSL"] = BDTG_SL;
-      // variables_cascade["tau2/tau1"] = tau21;
+	    std::map<std::string,float> variables_cascade;
+	    variables_cascade["BDTGSV"] = BDTG_SV;
+	    variables_cascade["BDTGSL"] = BDTG_SL;
+	    // variables_cascade["tau2/tau1"] = tau21;
 
-      BDTG_Cascade = evaluator_cascade_->evaluate(variables_cascade); //check cascade later
+	    BDTG_Cascade = evaluator_cascade_->evaluate(variables_cascade); //check cascade later
 
-      BDTG_All = evaluator_all_->evaluate(variables);
+	    BDTG_All = evaluator_all_->evaluate(variables);
 
     }
     JetInfo[iJetColl].Jet_z_ratio[JetInfo[iJetColl].nJet]          = z_ratio;
@@ -1908,38 +2067,38 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 } // BTagAnalyzerLiteT:: processJets
 
 
-template<typename IPTI,typename VTX>
+	template<typename IPTI,typename VTX>
 void BTagAnalyzerLiteT<IPTI,VTX>::setTracksPVBase(const reco::TrackRef & trackRef, const edm::Handle<reco::VertexCollection> & pvHandle, int & iPV, float & PVweight)
 {
-  iPV = -1;
-  PVweight = 0.;
+	iPV = -1;
+	PVweight = 0.;
 
-  const reco::TrackBaseRef trackBaseRef( trackRef );
+	const reco::TrackBaseRef trackBaseRef( trackRef );
 
-  typedef reco::VertexCollection::const_iterator IV;
-  typedef reco::Vertex::trackRef_iterator IT;
+	typedef reco::VertexCollection::const_iterator IV;
+	typedef reco::Vertex::trackRef_iterator IT;
 
-  for(IV iv=pvHandle->begin(); iv!=pvHandle->end(); ++iv)
-  {
-    const reco::Vertex & vtx = *iv;
-    // loop over tracks in vertices
-    for(IT it=vtx.tracks_begin(); it!=vtx.tracks_end(); ++it)
-    {
-      const reco::TrackBaseRef & baseRef = *it;
-      // one of the tracks in the vertex is the same as the track considered in the function
-      if( baseRef == trackBaseRef )
-      {
-        float w = vtx.trackWeight(baseRef);
-        // select the vertex for which the track has the highest weight
-        if( w > PVweight )
-        {
-          PVweight = w;
-          iPV = ( iv - pvHandle->begin() );
-          break;
-        }
-      }
-    }
-  }
+	for(IV iv=pvHandle->begin(); iv!=pvHandle->end(); ++iv)
+	{
+		const reco::Vertex & vtx = *iv;
+		// loop over tracks in vertices
+		for(IT it=vtx.tracks_begin(); it!=vtx.tracks_end(); ++it)
+		{
+			const reco::TrackBaseRef & baseRef = *it;
+			// one of the tracks in the vertex is the same as the track considered in the function
+			if( baseRef == trackBaseRef )
+			{
+				float w = vtx.trackWeight(baseRef);
+				// select the vertex for which the track has the highest weight
+				if( w > PVweight )
+				{
+					PVweight = w;
+					iPV = ( iv - pvHandle->begin() );
+					break;
+				}
+			}
+		}
+	}
 }
 
 
@@ -1957,320 +2116,320 @@ void BTagAnalyzerLiteT<IPTI,VTX>::endJob() {
 template<typename IPTI,typename VTX>
 const edm::Ptr<reco::Muon> BTagAnalyzerLiteT<IPTI,VTX>::matchMuon(const edm::Ptr<reco::Candidate>& theMuon, const edm::View<reco::Muon>& muons ){
 
-  const pat::PackedCandidate * pcand = dynamic_cast<const pat::PackedCandidate *>(theMuon.get());
+	const pat::PackedCandidate * pcand = dynamic_cast<const pat::PackedCandidate *>(theMuon.get());
 
-  if(pcand) // MiniAOD case
-  {
-    for(edm::View<reco::Muon>::const_iterator muon = muons.begin(); muon != muons.end(); ++muon )
-    {
-       const pat::Muon * patmuon = dynamic_cast<const pat::Muon *>(&(*muon));
+	if(pcand) // MiniAOD case
+	{
+		for(edm::View<reco::Muon>::const_iterator muon = muons.begin(); muon != muons.end(); ++muon )
+		{
+			const pat::Muon * patmuon = dynamic_cast<const pat::Muon *>(&(*muon));
 
-       if(patmuon)
-       {
-         if(patmuon->originalObjectRef()==theMuon)
-           return muons.ptrAt(muon - muons.begin());
-       }
-    }
-    return edm::Ptr<reco::Muon>();
-  }
-  else
-  {
-    const reco::PFCandidate * pfcand = dynamic_cast<const reco::PFCandidate *>(theMuon.get());
+			if(patmuon)
+			{
+				if(patmuon->originalObjectRef()==theMuon)
+					return muons.ptrAt(muon - muons.begin());
+			}
+		}
+		return edm::Ptr<reco::Muon>();
+	}
+	else
+	{
+		const reco::PFCandidate * pfcand = dynamic_cast<const reco::PFCandidate *>(theMuon.get());
 
-    return edm::refToPtr( pfcand->muonRef() );
-  }
+		return edm::refToPtr( pfcand->muonRef() );
+	}
 }
 
-template<typename IPTI,typename VTX>
+	template<typename IPTI,typename VTX>
 bool BTagAnalyzerLiteT<IPTI,VTX>::isHardProcess(const int status)
 {
-  // if Pythia8
-  if( hadronizerType_ & (1 << 1) )
-  {
-    if( status>=21 && status<=29 )
-      return true;
-  }
-  else // assuming Pythia6
-  {
-    if( status==3 )
-      return true;
-  }
+	// if Pythia8
+	if( hadronizerType_ & (1 << 1) )
+	{
+		if( status>=21 && status<=29 )
+			return true;
+	}
+	else // assuming Pythia6
+	{
+		if( status==3 )
+			return true;
+	}
 
-  return false;
+	return false;
 }
 
 // -------------------------------------------------------------------------
 // NameCompatible
 // -------------------------------------------------------------------------
-template<typename IPTI,typename VTX>
+	template<typename IPTI,typename VTX>
 bool BTagAnalyzerLiteT<IPTI,VTX>::NameCompatible(const std::string& pattern, const std::string& name)
 {
-  const boost::regex regexp(edm::glob2reg(pattern));
+	const boost::regex regexp(edm::glob2reg(pattern));
 
-  return boost::regex_match(name,regexp);
+	return boost::regex_match(name,regexp);
 }
 
 // ------------ method that matches groomed and original jets based on minimum dR ------------
-template<typename IPTI,typename VTX>
+	template<typename IPTI,typename VTX>
 void BTagAnalyzerLiteT<IPTI,VTX>::matchGroomedJets(const edm::Handle<PatJetCollection>& jets,
-                                                   const edm::Handle<PatJetCollection>& groomedJets,
-                                                   std::vector<int>& matchedIndices)
+		const edm::Handle<PatJetCollection>& groomedJets,
+		std::vector<int>& matchedIndices)
 {
-   std::vector<bool> jetLocks(jets->size(),false);
-   std::vector<int>  jetIndices;
+	std::vector<bool> jetLocks(jets->size(),false);
+	std::vector<int>  jetIndices;
 
-   for(size_t gj=0; gj<groomedJets->size(); ++gj)
-   {
-     double matchedDR2 = 1e9;
-     int matchedIdx = -1;
+	for(size_t gj=0; gj<groomedJets->size(); ++gj)
+	{
+		double matchedDR2 = 1e9;
+		int matchedIdx = -1;
 
-     for(size_t j=0; j<jets->size(); ++j)
-     {
-       if( jetLocks.at(j) ) continue; // skip jets that have already been matched
+		for(size_t j=0; j<jets->size(); ++j)
+		{
+			if( jetLocks.at(j) ) continue; // skip jets that have already been matched
 
-       double tempDR2 = reco::deltaR2( jets->at(j).rapidity(), jets->at(j).phi(), groomedJets->at(gj).rapidity(), groomedJets->at(gj).phi() );
-       if( tempDR2 < matchedDR2 )
-       {
-         matchedDR2 = tempDR2;
-         matchedIdx = j;
-       }
-     }
+			double tempDR2 = reco::deltaR2( jets->at(j).rapidity(), jets->at(j).phi(), groomedJets->at(gj).rapidity(), groomedJets->at(gj).phi() );
+			if( tempDR2 < matchedDR2 )
+			{
+				matchedDR2 = tempDR2;
+				matchedIdx = j;
+			}
+		}
 
-     if( matchedIdx>=0 ) jetLocks.at(matchedIdx) = true;
-     jetIndices.push_back(matchedIdx);
-   }
+		if( matchedIdx>=0 ) jetLocks.at(matchedIdx) = true;
+		jetIndices.push_back(matchedIdx);
+	}
 
-   if( std::find( jetIndices.begin(), jetIndices.end(), -1 ) != jetIndices.end() )
-     edm::LogError("JetMatchingFailed") << "Matching groomed to original jets failed. Please check that the two jet collections belong to each other.";
+	if( std::find( jetIndices.begin(), jetIndices.end(), -1 ) != jetIndices.end() )
+		edm::LogError("JetMatchingFailed") << "Matching groomed to original jets failed. Please check that the two jet collections belong to each other.";
 
-   for(size_t j=0; j<jets->size(); ++j)
-   {
-     std::vector<int>::iterator matchedIndex = std::find( jetIndices.begin(), jetIndices.end(), j );
+	for(size_t j=0; j<jets->size(); ++j)
+	{
+		std::vector<int>::iterator matchedIndex = std::find( jetIndices.begin(), jetIndices.end(), j );
 
-     matchedIndices.push_back( matchedIndex != jetIndices.end() ? std::distance(jetIndices.begin(),matchedIndex) : -1 );
-   }
+		matchedIndices.push_back( matchedIndex != jetIndices.end() ? std::distance(jetIndices.begin(),matchedIndex) : -1 );
+	}
 }
 
 // -------------- template specializations --------------------
 // -------------- toIPTagInfo ----------------
 template<>
-const BTagAnalyzerLiteT<reco::TrackIPTagInfo,reco::Vertex>::IPTagInfo *
+	const BTagAnalyzerLiteT<reco::TrackIPTagInfo,reco::Vertex>::IPTagInfo *
 BTagAnalyzerLiteT<reco::TrackIPTagInfo,reco::Vertex>::toIPTagInfo(const pat::Jet & jet, const std::string & tagInfos)
 {
-  return jet.tagInfoTrackIP(tagInfos.c_str());
+	return jet.tagInfoTrackIP(tagInfos.c_str());
 }
 
 template<>
-const BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::IPTagInfo *
+	const BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::IPTagInfo *
 BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::toIPTagInfo(const pat::Jet & jet, const std::string & tagInfos)
 {
-  return jet.tagInfoCandIP(tagInfos.c_str());
+	return jet.tagInfoCandIP(tagInfos.c_str());
 }
 
 // -------------- toSVTagInfo ----------------
 template<>
-const BTagAnalyzerLiteT<reco::TrackIPTagInfo,reco::Vertex>::SVTagInfo *
+	const BTagAnalyzerLiteT<reco::TrackIPTagInfo,reco::Vertex>::SVTagInfo *
 BTagAnalyzerLiteT<reco::TrackIPTagInfo,reco::Vertex>::toSVTagInfo(const pat::Jet & jet, const std::string & tagInfos)
 {
-  return jet.tagInfoSecondaryVertex(tagInfos.c_str());
+	return jet.tagInfoSecondaryVertex(tagInfos.c_str());
 }
 
 template<>
-const BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::SVTagInfo *
+	const BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::SVTagInfo *
 BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::toSVTagInfo(const pat::Jet & jet, const std::string & tagInfos)
 {
-  return jet.tagInfoCandSecondaryVertex(tagInfos.c_str());
+	return jet.tagInfoCandSecondaryVertex(tagInfos.c_str());
 }
 
 // -------------- setTracksPV ----------------
-template<>
+	template<>
 void BTagAnalyzerLiteT<reco::TrackIPTagInfo,reco::Vertex>::setTracksPV(const TrackRef & trackRef, const edm::Handle<reco::VertexCollection> & pvHandle, int & iPV, float & PVweight)
 {
-  setTracksPVBase(trackRef, pvHandle, iPV, PVweight);
+	setTracksPVBase(trackRef, pvHandle, iPV, PVweight);
 }
 
-template<>
+	template<>
 void BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::setTracksPV(const TrackRef & trackRef, const edm::Handle<reco::VertexCollection> & pvHandle, int & iPV, float & PVweight)
 {
-  iPV = -1;
-  PVweight = 0.;
+	iPV = -1;
+	PVweight = 0.;
 
-  const pat::PackedCandidate * pcand = dynamic_cast<const pat::PackedCandidate *>(trackRef.get());
+	const pat::PackedCandidate * pcand = dynamic_cast<const pat::PackedCandidate *>(trackRef.get());
 
-  if(pcand) // MiniAOD case
-  {
-    if( pcand->fromPV() == pat::PackedCandidate::PVUsedInFit )
-    {
-      iPV = 0;
-      PVweight = 1.;
-    }
-  }
-  else
-  {
-    const reco::PFCandidate * pfcand = dynamic_cast<const reco::PFCandidate *>(trackRef.get());
+	if(pcand) // MiniAOD case
+	{
+		if( pcand->fromPV() == pat::PackedCandidate::PVUsedInFit )
+		{
+			iPV = 0;
+			PVweight = 1.;
+		}
+	}
+	else
+	{
+		const reco::PFCandidate * pfcand = dynamic_cast<const reco::PFCandidate *>(trackRef.get());
 
-    setTracksPVBase(pfcand->trackRef(), pvHandle, iPV, PVweight);
-  }
+		setTracksPVBase(pfcand->trackRef(), pvHandle, iPV, PVweight);
+	}
 }
 
 // -------------- setTracksSV ----------------
-template<>
+	template<>
 void BTagAnalyzerLiteT<reco::TrackIPTagInfo,reco::Vertex>::setTracksSV(const TrackRef & trackRef, const SVTagInfo * svTagInfo, int & isFromSV, int & iSV, float & SVweight)
 {
-  isFromSV = 0;
-  iSV = -1;
-  SVweight = 0.;
+	isFromSV = 0;
+	iSV = -1;
+	SVweight = 0.;
 
-  const reco::TrackBaseRef trackBaseRef( trackRef );
+	const reco::TrackBaseRef trackBaseRef( trackRef );
 
-  typedef reco::Vertex::trackRef_iterator IT;
+	typedef reco::Vertex::trackRef_iterator IT;
 
-  size_t nSV = svTagInfo->nVertices();
-  for(size_t iv=0; iv<nSV; ++iv)
-  {
-    const reco::Vertex & vtx = svTagInfo->secondaryVertex(iv);
-    // loop over tracks in vertices
-    for(IT it=vtx.tracks_begin(); it!=vtx.tracks_end(); ++it)
-    {
-      const reco::TrackBaseRef & baseRef = *it;
-      // one of the tracks in the vertex is the same as the track considered in the function
-      if( baseRef == trackBaseRef )
-      {
-        float w = vtx.trackWeight(baseRef);
-        // select the vertex for which the track has the highest weight
-        if( w > SVweight )
-        {
-          SVweight = w;
-          isFromSV = 1;
-          iSV = iv;
-          break;
-        }
-      }
-    }
-  }
+	size_t nSV = svTagInfo->nVertices();
+	for(size_t iv=0; iv<nSV; ++iv)
+	{
+		const reco::Vertex & vtx = svTagInfo->secondaryVertex(iv);
+		// loop over tracks in vertices
+		for(IT it=vtx.tracks_begin(); it!=vtx.tracks_end(); ++it)
+		{
+			const reco::TrackBaseRef & baseRef = *it;
+			// one of the tracks in the vertex is the same as the track considered in the function
+			if( baseRef == trackBaseRef )
+			{
+				float w = vtx.trackWeight(baseRef);
+				// select the vertex for which the track has the highest weight
+				if( w > SVweight )
+				{
+					SVweight = w;
+					isFromSV = 1;
+					iSV = iv;
+					break;
+				}
+			}
+		}
+	}
 }
 
-template<>
+	template<>
 void BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::setTracksSV(const TrackRef & trackRef, const SVTagInfo * svTagInfo, int & isFromSV, int & iSV, float & SVweight)
 {
-  isFromSV = 0;
-  iSV = -1;
-  SVweight = 0.;
+	isFromSV = 0;
+	iSV = -1;
+	SVweight = 0.;
 
-  typedef std::vector<reco::CandidatePtr>::const_iterator IT;
+	typedef std::vector<reco::CandidatePtr>::const_iterator IT;
 
-  size_t nSV = svTagInfo->nVertices();
-  for(size_t iv=0; iv<nSV; ++iv)
-  {
-    const Vertex & vtx = svTagInfo->secondaryVertex(iv);
-    const std::vector<reco::CandidatePtr> & tracks = vtx.daughterPtrVector();
+	size_t nSV = svTagInfo->nVertices();
+	for(size_t iv=0; iv<nSV; ++iv)
+	{
+		const Vertex & vtx = svTagInfo->secondaryVertex(iv);
+		const std::vector<reco::CandidatePtr> & tracks = vtx.daughterPtrVector();
 
-    // one of the tracks in the vertex is the same as the track considered in the function
-    if( std::find(tracks.begin(),tracks.end(),trackRef) != tracks.end() )
-    {
-      SVweight = 1.;
-      isFromSV = 1;
-      iSV = iv;
-    }
+		// one of the tracks in the vertex is the same as the track considered in the function
+		if( std::find(tracks.begin(),tracks.end(),trackRef) != tracks.end() )
+		{
+			SVweight = 1.;
+			isFromSV = 1;
+			iSV = iv;
+		}
 
-    // select the first vertex for which the track is used in the fit
-    // (reco::VertexCompositePtrCandidate does not store track weights so can't select the vertex for which the track has the highest weight)
-    if(iSV>=0)
-      break;
-  }
+		// select the first vertex for which the track is used in the fit
+		// (reco::VertexCompositePtrCandidate does not store track weights so can't select the vertex for which the track has the highest weight)
+		if(iSV>=0)
+			break;
+	}
 }
 
 // -------------- vertexKinematicsAndChange ----------------
-template<>
+	template<>
 void BTagAnalyzerLiteT<reco::TrackIPTagInfo,reco::Vertex>::vertexKinematicsAndChange(const Vertex & vertex, reco::TrackKinematics & vertexKinematics, Int_t & charge, Double_t & vtx_track_ptSum, Double_t & vtx_track_ESum)
 {
-  Bool_t hasRefittedTracks = vertex.hasRefittedTracks();
+	Bool_t hasRefittedTracks = vertex.hasRefittedTracks();
 
-  for(reco::Vertex::trackRef_iterator track = vertex.tracks_begin();
-      track != vertex.tracks_end(); ++track) {
-    Double_t w = vertex.trackWeight(*track);
-    if (w < 0.5)
-      continue;
-    if (hasRefittedTracks) {
-      reco::Track actualTrack = vertex.refittedTrack(*track);
-      vertexKinematics.add(actualTrack, w);
-      charge+=actualTrack.charge();
-      vtx_track_ptSum += std::sqrt(actualTrack.momentum().Perp2());
-      vtx_track_ESum  += std::sqrt(actualTrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus));
-    }
-    else {
-      const reco::Track& mytrack = **track;
-      vertexKinematics.add(mytrack, w);
-      charge+=mytrack.charge();
-      vtx_track_ptSum += std::sqrt(mytrack.momentum().Perp2());
-      vtx_track_ESum  += std::sqrt(mytrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus));
-    }
-  }
+	for(reco::Vertex::trackRef_iterator track = vertex.tracks_begin();
+			track != vertex.tracks_end(); ++track) {
+		Double_t w = vertex.trackWeight(*track);
+		if (w < 0.5)
+			continue;
+		if (hasRefittedTracks) {
+			reco::Track actualTrack = vertex.refittedTrack(*track);
+			vertexKinematics.add(actualTrack, w);
+			charge+=actualTrack.charge();
+			vtx_track_ptSum += std::sqrt(actualTrack.momentum().Perp2());
+			vtx_track_ESum  += std::sqrt(actualTrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus));
+		}
+		else {
+			const reco::Track& mytrack = **track;
+			vertexKinematics.add(mytrack, w);
+			charge+=mytrack.charge();
+			vtx_track_ptSum += std::sqrt(mytrack.momentum().Perp2());
+			vtx_track_ESum  += std::sqrt(mytrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus));
+		}
+	}
 }
 
-template<>
+	template<>
 void BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::vertexKinematicsAndChange(const Vertex & vertex, reco::TrackKinematics & vertexKinematics, Int_t & charge, Double_t & vtx_track_ptSum, Double_t & vtx_track_ESum)
 {
-  const std::vector<reco::CandidatePtr> & tracks = vertex.daughterPtrVector();
+	const std::vector<reco::CandidatePtr> & tracks = vertex.daughterPtrVector();
 
-  for(std::vector<reco::CandidatePtr>::const_iterator track = tracks.begin(); track != tracks.end(); ++track) {
-    const reco::Track& mytrack = *(*track)->bestTrack();
-    vertexKinematics.add(mytrack, 1.0);
-    charge+=mytrack.charge();
-    vtx_track_ptSum += std::sqrt(mytrack.momentum().Perp2());
-    vtx_track_ESum  += std::sqrt(mytrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus));
+	for(std::vector<reco::CandidatePtr>::const_iterator track = tracks.begin(); track != tracks.end(); ++track) {
+		const reco::Track& mytrack = *(*track)->bestTrack();
+		vertexKinematics.add(mytrack, 1.0);
+		charge+=mytrack.charge();
+		vtx_track_ptSum += std::sqrt(mytrack.momentum().Perp2());
+		vtx_track_ESum  += std::sqrt(mytrack.momentum().Mag2() + ROOT::Math::Square(ParticleMasses::piPlus));
 
-  }
+	}
 }
 
 // -------------- recalcNsubjettiness ----------------
-template<>
+	template<>
 void BTagAnalyzerLiteT<reco::TrackIPTagInfo,reco::Vertex>::recalcNsubjettiness(const pat::Jet & jet, const SVTagInfo & svTagInfo, float & tau1, float & tau2, std::vector<fastjet::PseudoJet> & currentAxes)
 {
-  // need candidate-based IVF vertices so do nothing here
+	// need candidate-based IVF vertices so do nothing here
 }
 
-template<>
+	template<>
 void BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::recalcNsubjettiness(const pat::Jet & jet, const SVTagInfo & svTagInfo, float & tau1, float & tau2, std::vector<fastjet::PseudoJet> & currentAxes)
 {
-  std::vector<fastjet::PseudoJet> fjParticles;
-  std::vector<reco::CandidatePtr> svDaughters;
+	std::vector<fastjet::PseudoJet> fjParticles;
+	std::vector<reco::CandidatePtr> svDaughters;
 
-  if ( useBCands_ )
-  {
-    // loop over IVF vertices and push them in the vector of FastJet constituents and also collect their daughters
-    for(size_t i=0; i<svTagInfo.nVertices(); ++i)
-    {
-      const reco::VertexCompositePtrCandidate & vtx = svTagInfo.secondaryVertex(i);
+	if ( useBCands_ )
+	{
+		// loop over IVF vertices and push them in the vector of FastJet constituents and also collect their daughters
+		for(size_t i=0; i<svTagInfo.nVertices(); ++i)
+		{
+			const reco::VertexCompositePtrCandidate & vtx = svTagInfo.secondaryVertex(i);
 
-      fjParticles.push_back( fastjet::PseudoJet( vtx.px(), vtx.py(), vtx.pz(), vtx.energy() ) );
+			fjParticles.push_back( fastjet::PseudoJet( vtx.px(), vtx.py(), vtx.pz(), vtx.energy() ) );
 
-      const std::vector<reco::CandidatePtr> & daughters = vtx.daughterPtrVector();
-      svDaughters.insert(svDaughters.end(), daughters.begin(), daughters.end());
-    }
-  }
+			const std::vector<reco::CandidatePtr> & daughters = vtx.daughterPtrVector();
+			svDaughters.insert(svDaughters.end(), daughters.begin(), daughters.end());
+		}
+	}
 
-  // loop over jet constituents and select those that are not daughters of IVF vertices
-  std::vector<reco::CandidatePtr> constituentsOther;
-  for(const reco::CandidatePtr & daughter : jet.daughterPtrVector())
-  {
-    if (std::find(svDaughters.begin(), svDaughters.end(), daughter) == svDaughters.end())
-      constituentsOther.push_back( daughter );
-  }
+	// loop over jet constituents and select those that are not daughters of IVF vertices
+	std::vector<reco::CandidatePtr> constituentsOther;
+	for(const reco::CandidatePtr & daughter : jet.daughterPtrVector())
+	{
+		if (std::find(svDaughters.begin(), svDaughters.end(), daughter) == svDaughters.end())
+			constituentsOther.push_back( daughter );
+	}
 
-  // loop over jet constituents that are not daughters of IVF vertices and push them in the vector of FastJet constituents
-  for(const reco::CandidatePtr & constit : constituentsOther)
-  {
-    if ( constit.isNonnull() && constit.isAvailable() )
-      fjParticles.push_back( fastjet::PseudoJet( constit->px(), constit->py(), constit->pz(), constit->energy() ) );
-    else
-      edm::LogWarning("MissingJetConstituent") << "Jet constituent required for N-subjettiness computation is missing!";
-  }
+	// loop over jet constituents that are not daughters of IVF vertices and push them in the vector of FastJet constituents
+	for(const reco::CandidatePtr & constit : constituentsOther)
+	{
+		if ( constit.isNonnull() && constit.isAvailable() )
+			fjParticles.push_back( fastjet::PseudoJet( constit->px(), constit->py(), constit->pz(), constit->energy() ) );
+		else
+			edm::LogWarning("MissingJetConstituent") << "Jet constituent required for N-subjettiness computation is missing!";
+	}
 
-  // re-calculate N-subjettiness
-  tau1 = njettiness_.getTau(1, fjParticles);
-  tau2 = njettiness_.getTau(2, fjParticles);
-  currentAxes = njettiness_.currentAxes();
+	// re-calculate N-subjettiness
+	tau1 = njettiness_.getTau(1, fjParticles);
+	tau2 = njettiness_.getTau(2, fjParticles);
+	currentAxes = njettiness_.currentAxes();
 }
 
 
