@@ -24,6 +24,12 @@ class JetInfoBranches {
     float tau2_vertexMass[nMaxJets_];	
     float tau1_vertexMass_corrected[nMaxJets_];
     float tau2_vertexMass_corrected[nMaxJets_];	
+    float tau1_vertexNtrk[nMaxJets_];
+    float tau2_vertexNtrk[nMaxJets_];
+    float tau1_vertexFlightDErr[nMaxJets_];
+    float tau2_vertexFlightDErr[nMaxJets_];
+    float tau1_vertexFlight2DErr[nMaxJets_];
+    float tau2_vertexFlight2DErr[nMaxJets_];	
     float Track_distance_TwoHighest3DSig[nMaxJets_];
     float Jet_genpt[nMaxJets_];
     float Jet_residual[nMaxJets_];
@@ -106,6 +112,15 @@ class JetInfoBranches {
     float Jet_trackEtaRel_2[nMaxJets_];
     float Jet_trackEtaRel_1[nMaxJets_];
     float Jet_trackEtaRel_0[nMaxJets_];
+    float Jet_trackEtaRel_tau2_2[nMaxJets_];
+    float Jet_trackEtaRel_tau2_1[nMaxJets_];
+    float Jet_trackEtaRel_tau2_0[nMaxJets_];
+    float Jet_trackEtaRel_tau1_2[nMaxJets_];
+    float Jet_trackEtaRel_tau1_1[nMaxJets_];
+    float Jet_trackEtaRel_tau1_0[nMaxJets_];
+    float trackSip2dSigAboveCharm_0[nMaxJets_];
+    float trackSip2dSigAboveCharm_1[nMaxJets_];
+	
     float Jet_SV_mass_0[nMaxJets_];
     float Jet_SV_EnergyRatio_0[nMaxJets_];
     float Jet_SV_EnergyRatio_1[nMaxJets_];
@@ -381,6 +396,15 @@ class JetInfoBranches {
       tree->Branch((name+"tau1_vertexMass_corrected").c_str(),      tau1_vertexMass_corrected ,(name+"tau1_vertexMass_corrected["+name+"nJet]/F").c_str());
       tree->Branch((name+"tau2_vertexMass_corrected").c_str(),      tau2_vertexMass_corrected , (name+"tau2_vertexMass_corrected["+name+"nJet]/F").c_str());
       tree->Branch((name+"Track_distance_TwoHighest3DSig").c_str(),   Track_distance_TwoHighest3DSig, (name+"Track_distance_TwoHighest3DSig["+name+"nJet]/F").c_str());
+      tree->Branch((name+"tau1_vertexNtrk").c_str(),      tau1_vertexNtrk ,(name+"tau1_vertexNtrk["+name+"nJet]/F").c_str());
+      tree->Branch((name+"tau2_vertexNtrk").c_str(),      tau2_vertexNtrk ,(name+"tau2_vertexNtrk["+name+"nJet]/F").c_str());
+      tree->Branch((name+"tau1_vertexFlightDErr").c_str(),      tau1_vertexFlightDErr ,(name+"tau1_vertexFlightDErr["+name+"nJet]/F").c_str());
+      tree->Branch((name+"tau2_vertexFlightDErr").c_str(),      tau2_vertexFlightDErr ,(name+"tau2_vertexFlightDErr["+name+"nJet]/F").c_str());
+      tree->Branch((name+"tau1_vertexFlight2DErr").c_str(),      tau1_vertexFlight2DErr ,(name+"tau1_vertexFlight2DErr["+name+"nJet]/F").c_str());
+      tree->Branch((name+"tau2_vertexFlight2DErr").c_str(),      tau2_vertexFlight2DErr ,(name+"tau2_vertexFlight2DErr["+name+"nJet]/F").c_str());
+	
+	
+	
 
 
       //--------------------------------------
@@ -597,6 +621,8 @@ class JetInfoBranches {
       tree->Branch((name+"TagVarCSV_trackSip2dSigAboveCharm").c_str()  ,TagVarCSV_trackSip2dSigAboveCharm  ,(name+"TagVarCSV_trackSip2dSigAboveCharm["+name+"nJet]/F").c_str() );
       tree->Branch((name+"TagVarCSV_trackSip3dValAboveCharm").c_str()  ,TagVarCSV_trackSip3dValAboveCharm  ,(name+"TagVarCSV_trackSip3dValAboveCharm["+name+"nJet]/F").c_str() );
       tree->Branch((name+"TagVarCSV_trackSip3dSigAboveCharm").c_str()  ,TagVarCSV_trackSip3dSigAboveCharm  ,(name+"TagVarCSV_trackSip3dSigAboveCharm["+name+"nJet]/F").c_str() );
+      tree->Branch((name+"trackSip2dSigAboveCharm_0").c_str()  ,trackSip2dSigAboveCharm_0  ,(name+"trackSip2dSigAboveCharm_0["+name+"nJet]/F").c_str() );	
+      tree->Branch((name+"trackSip2dSigAboveCharm_1").c_str()  ,trackSip2dSigAboveCharm_1  ,(name+"trackSip2dSigAboveCharm_1["+name+"nJet]/F").c_str() );	
       tree->Branch((name+"TagVarCSV_vertexCategory").c_str()           ,TagVarCSV_vertexCategory           ,(name+"TagVarCSV_vertexCategory["+name+"nJet]/F").c_str()          );
       tree->Branch((name+"TagVarCSV_jetNSecondaryVertices").c_str()    ,TagVarCSV_jetNSecondaryVertices    ,(name+"TagVarCSV_jetNSecondaryVertices["+name+"nJet]/F").c_str()   );
       tree->Branch((name+"TagVarCSV_vertexMass").c_str()               ,TagVarCSV_vertexMass               ,(name+"TagVarCSV_vertexMass["+name+"nJet]/F").c_str()              );
@@ -669,6 +695,14 @@ class JetInfoBranches {
       tree->Branch((name+"Jet_trackEtaRel_2").c_str(),          Jet_trackEtaRel_2          ,(name+"Jet_trackEtaRel_2["+name+"nJet]/F").c_str()         );
       tree->Branch((name+"Jet_trackEtaRel_1").c_str(),          Jet_trackEtaRel_1          ,(name+"Jet_trackEtaRel_1["+name+"nJet]/F").c_str()         );
       tree->Branch((name+"Jet_trackEtaRel_0").c_str(),          Jet_trackEtaRel_0          ,(name+"Jet_trackEtaRel_0["+name+"nJet]/F").c_str()         );
+      tree->Branch((name+"Jet_trackEtaRel_tau2_2").c_str(),          Jet_trackEtaRel_tau2_2          ,(name+"Jet_trackEtaRel_tau2_2["+name+"nJet]/F").c_str()         );
+      tree->Branch((name+"Jet_trackEtaRel_tau2_1").c_str(),          Jet_trackEtaRel_tau2_1          ,(name+"Jet_trackEtaRel_tau2_1["+name+"nJet]/F").c_str()         );
+      tree->Branch((name+"Jet_trackEtaRel_tau2_0").c_str(),          Jet_trackEtaRel_tau2_0          ,(name+"Jet_trackEtaRel_tau2_0["+name+"nJet]/F").c_str()         );
+      tree->Branch((name+"Jet_trackEtaRel_tau1_2").c_str(),          Jet_trackEtaRel_tau1_2          ,(name+"Jet_trackEtaRel_tau1_2["+name+"nJet]/F").c_str()         );
+      tree->Branch((name+"Jet_trackEtaRel_tau1_1").c_str(),          Jet_trackEtaRel_tau1_1          ,(name+"Jet_trackEtaRel_tau1_1["+name+"nJet]/F").c_str()         );
+      tree->Branch((name+"Jet_trackEtaRel_tau1_0").c_str(),          Jet_trackEtaRel_tau1_0          ,(name+"Jet_trackEtaRel_tau1_0["+name+"nJet]/F").c_str()         );
+	
+	
       tree->Branch((name+"Jet_SV_mass_0").c_str(),        Jet_SV_mass_0        ,(name+"Jet_SV_mass_0["+name+"nJet]/F").c_str()       );
       tree->Branch((name+"Jet_SV_EnergyRatio_0").c_str(), Jet_SV_EnergyRatio_0 ,(name+"Jet_SV_EnergyRatio_0["+name+"nJet]/F").c_str());
       tree->Branch((name+"Jet_SV_EnergyRatio_1").c_str(), Jet_SV_EnergyRatio_1 ,(name+"Jet_SV_EnergyRatio_1["+name+"nJet]/F").c_str());
@@ -886,6 +920,13 @@ class JetInfoBranches {
       tree->SetBranchAddress((name+"tau1_vertexMass_corrected").c_str(),      tau1_vertexMass_corrected);
       tree->SetBranchAddress((name+"tau2_vertexMass_corrected").c_str(),      tau2_vertexMass_corrected);
       tree->SetBranchAddress((name+"Track_distance_TwoHighest3DSig").c_str(),   Track_distance_TwoHighest3DSig);
+      tree->SetBranchAddress((name+"tau1_vertexNtrk").c_str(),      tau1_vertexNtrk);
+      tree->SetBranchAddress((name+"tau2_vertexNtrk").c_str(),      tau2_vertexNtrk);
+      tree->SetBranchAddress((name+"tau1_vertexFlightDErr").c_str(),      tau1_vertexFlightDErr);
+      tree->SetBranchAddress((name+"tau2_vertexFlightDErr").c_str(),      tau2_vertexFlightDErr);
+      tree->SetBranchAddress((name+"tau1_vertexFlight2DErr").c_str(),      tau1_vertexFlight2DErr);
+      tree->SetBranchAddress((name+"tau2_vertexFlight2DErr").c_str(),      tau2_vertexFlight2DErr);
+	
 
     }
 
@@ -964,6 +1005,8 @@ class JetInfoBranches {
       tree->SetBranchAddress((name+"TagVarCSV_trackSip2dSigAboveCharm").c_str()  ,TagVarCSV_trackSip2dSigAboveCharm );
       tree->SetBranchAddress((name+"TagVarCSV_trackSip3dValAboveCharm").c_str()  ,TagVarCSV_trackSip3dValAboveCharm );
       tree->SetBranchAddress((name+"TagVarCSV_trackSip3dSigAboveCharm").c_str()  ,TagVarCSV_trackSip3dSigAboveCharm );
+      tree->SetBranchAddress((name+"trackSip2dSigAboveCharm_0").c_str()  ,trackSip2dSigAboveCharm_0 );
+      tree->SetBranchAddress((name+"trackSip2dSigAboveCharm_1").c_str()  ,trackSip2dSigAboveCharm_1 );	
       tree->SetBranchAddress((name+"TagVarCSV_vertexCategory").c_str()           ,TagVarCSV_vertexCategory          );
       tree->SetBranchAddress((name+"TagVarCSV_jetNSecondaryVertices").c_str()    ,TagVarCSV_jetNSecondaryVertices   );
       tree->SetBranchAddress((name+"TagVarCSV_vertexMass").c_str()               ,TagVarCSV_vertexMass              );
@@ -1037,6 +1080,14 @@ class JetInfoBranches {
       tree->SetBranchAddress((name+"Jet_trackEtaRel_2").c_str(),          Jet_trackEtaRel_2);
       tree->SetBranchAddress((name+"Jet_trackEtaRel_1").c_str(),          Jet_trackEtaRel_1);
       tree->SetBranchAddress((name+"Jet_trackEtaRel_0").c_str(),          Jet_trackEtaRel_0);
+      tree->SetBranchAddress((name+"Jet_trackEtaRel_tau2_2").c_str(),          Jet_trackEtaRel_tau2_2);
+      tree->SetBranchAddress((name+"Jet_trackEtaRel_tau2_1").c_str(),          Jet_trackEtaRel_tau2_1);
+      tree->SetBranchAddress((name+"Jet_trackEtaRel_tau2_0").c_str(),          Jet_trackEtaRel_tau2_0);
+      tree->SetBranchAddress((name+"Jet_trackEtaRel_tau1_2").c_str(),          Jet_trackEtaRel_tau1_2);
+      tree->SetBranchAddress((name+"Jet_trackEtaRel_tau1_1").c_str(),          Jet_trackEtaRel_tau1_1);
+      tree->SetBranchAddress((name+"Jet_trackEtaRel_tau1_0").c_str(),          Jet_trackEtaRel_tau1_0);
+	
+	
       tree->SetBranchAddress((name+"Jet_SV_mass_0").c_str(),        Jet_SV_mass_0        );
       tree->SetBranchAddress((name+"Jet_SV_EnergyRatio_0").c_str(), Jet_SV_EnergyRatio_0 );
       tree->SetBranchAddress((name+"Jet_SV_EnergyRatio_1").c_str(), Jet_SV_EnergyRatio_1 );
