@@ -155,6 +155,9 @@ class BTagAnalyzerLiteT : public edm::EDAnalyzer
     void setTracksSV(const TrackRef & trackRef, const SVTagInfo *, int & isFromSV, int & iSV, float & SVweight);
 
     void vertexKinematicsAndChange(const Vertex & vertex, reco::TrackKinematics & vertexKinematics, Int_t & charge, Double_t & vtx_track_ptSum, Double_t & vtx_track_ESum);
+     
+    void etaRel_alongTau(const Vertex & vertex,std::vector<float> & EtaRel_tau,math::XYZVector & direction);
+	
 
     bool NameCompatible(const std::string& pattern, const std::string& name);
 
@@ -1712,7 +1715,7 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 	    vertexKinematicsAndChange(vertex, vertexKinematics, totcharge, vtx_track_ptSum, vtx_track_ESum);
 
 
-	    const std::vector<reco::CandidatePtr> & tracks = vertex.daughterPtrVector();
+//	    const std::vector<reco::CandidatePtr> & tracks = vertex.daughterPtrVector();
 	    if (currentAxes.size() > 1)
 	    {
 		    if (reco::deltaR2(svTagInfo->flightDirection(vtx),currentAxes[1]) < reco::deltaR2(svTagInfo->flightDirection(vtx),currentAxes[0])){
@@ -1724,11 +1727,13 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 				    JetInfo[iJetColl].tau2_vertexFlightDErr[JetInfo[iJetColl].nJet]  = svTagInfo->flightDistance(vtx).error(); 	
 				    JetInfo[iJetColl].tau2_vertexFlight2DErr[JetInfo[iJetColl].nJet]  = svTagInfo->flightDistance(vtx,true).error(); 
 			    }
-			    for(std::vector<reco::CandidatePtr>::const_iterator track = tracks.begin(); track != tracks.end(); ++track) {	
+			    etaRel_alongTau(vertex,EtaRel_tau2,direction);	
+			    std::cout<<"EtaRel_tau2.size()"  <<EtaRel_tau2.size()<<std::endl;
+			    /*for(std::vector<reco::CandidatePtr>::const_iterator track = tracks.begin(); track != tracks.end(); ++track) {	
 				    const reco::Track& mytrack = *(*track)->bestTrack();
 				    EtaRel_tau2.push_back(TMath::Abs(reco::btau::etaRel(direction,mytrack.momentum())));
 				    }
-
+*/
 			    
 	    }
 		    else{
@@ -1740,11 +1745,12 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 				    JetInfo[iJetColl].tau1_vertexFlightDErr[JetInfo[iJetColl].nJet]  = svTagInfo->flightDistance(vtx).error(); 
 				    JetInfo[iJetColl].tau1_vertexFlight2DErr[JetInfo[iJetColl].nJet]  = svTagInfo->flightDistance(vtx,true).error();
 			    }
-			    for(std::vector<reco::CandidatePtr>::const_iterator track = tracks.begin(); track != tracks.end(); ++track) {	
+			    etaRel_alongTau(vertex,EtaRel_tau1,direction);	
+			    /*for(std::vector<reco::CandidatePtr>::const_iterator track = tracks.begin(); track != tracks.end(); ++track) {	
 				    const reco::Track& mytrack = *(*track)->bestTrack();
 				    EtaRel_tau1.push_back(TMath::Abs(reco::btau::etaRel(direction,mytrack.momentum())));
 
-			    }		
+			    }*/		
 		    }
 
 	    }else if (currentAxes.size() > 0){
@@ -1756,11 +1762,13 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 			    JetInfo[iJetColl].tau1_vertexFlightDErr[JetInfo[iJetColl].nJet]  = svTagInfo->flightDistance(vtx).error(); 
 			    JetInfo[iJetColl].tau1_vertexFlight2DErr[JetInfo[iJetColl].nJet]  = svTagInfo->flightDistance(vtx,true).error();
 		    }
-		    for(std::vector<reco::CandidatePtr>::const_iterator track = tracks.begin(); track != tracks.end(); ++track) {	
+		    etaRel_alongTau(vertex,EtaRel_tau1,direction);	
+		    /*for(std::vector<reco::CandidatePtr>::const_iterator track = tracks.begin(); track != tracks.end(); ++track) {	
 			    const reco::Track& mytrack = *(*track)->bestTrack();	
 			    EtaRel_tau1.push_back(TMath::Abs(reco::btau::etaRel(direction,mytrack.momentum())));
 
-		    }
+		    }*/
+
 
 	    }
 
@@ -2338,6 +2346,43 @@ void BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::s
 			break;
 	}
 }
+
+
+        template<>
+void BTagAnalyzerLiteT<reco::TrackIPTagInfo,reco::Vertex>::etaRel_alongTau(const Vertex & vertex,std::vector<float> & EtaRel_tau,math::XYZVector & direction)
+{
+
+Bool_t hasRefittedTracks = vertex.hasRefittedTracks();
+ for(reco::Vertex::trackRef_iterator track = vertex.tracks_begin();
+                        track != vertex.tracks_end(); ++track) {
+                Double_t w = vertex.trackWeight(*track);
+                if (w < 0.5)
+                        continue;
+                if (hasRefittedTracks) {
+                        reco::Track actualTrack = vertex.refittedTrack(*track);
+			EtaRel_tau.push_back(TMath::Abs(reco::btau::etaRel(direction,actualTrack.momentum())));
+		}	
+		 else {
+                        const reco::Track& mytrack = **track;
+			EtaRel_tau.push_back(TMath::Abs(reco::btau::etaRel(direction,mytrack.momentum())));
+                }
+        }
+}
+
+	
+   template<>
+void BTagAnalyzerLiteT<reco::CandIPTagInfo,reco::VertexCompositePtrCandidate>::etaRel_alongTau(const Vertex & vertex,std::vector<float> & EtaRel_tau,math::XYZVector & direction)
+{
+        const std::vector<reco::CandidatePtr> & tracks = vertex.daughterPtrVector();
+
+        for(std::vector<reco::CandidatePtr>::const_iterator track = tracks.begin(); track != tracks.end(); ++track) {
+                const reco::Track& mytrack = *(*track)->bestTrack();
+		EtaRel_tau.push_back(TMath::Abs(reco::btau::etaRel(direction,mytrack.momentum())));
+
+        }
+}
+
+
 
 // -------------- vertexKinematicsAndChange ----------------
 	template<>
