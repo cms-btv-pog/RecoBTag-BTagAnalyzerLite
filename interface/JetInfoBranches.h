@@ -94,6 +94,10 @@ class JetInfoBranches {
     float Jet_trackSip3dSig_2[nMaxJets_];
     float Jet_trackSip3dSig_1[nMaxJets_];
     float Jet_trackSip3dSig_0[nMaxJets_];
+    float Jet_trackSip2dSigAboveCharm_0[nMaxJets_];
+    float Jet_trackSip2dSigAboveCharm_1[nMaxJets_];
+    float Jet_trackSip2dSigAboveBottom_0[nMaxJets_];
+    float Jet_trackSip2dSigAboveBottom_1[nMaxJets_];
     float Jet_TrackDistance_TwoHighest3DSig[nMaxJets_];
     float Jet_trackEtaRel_2[nMaxJets_];
     float Jet_trackEtaRel_1[nMaxJets_];
@@ -689,6 +693,10 @@ class JetInfoBranches {
         tree->Branch((name+"Track_lengthTau").c_str()     ,Track_lengthTau       ,(name+"Track_lengthTau["+name+"nTrack]/F").c_str());
         tree->Branch((name+"Track_distTau").c_str()       ,Track_distTau         ,(name+"Track_distTau["+name+"nTrack]/F").c_str());
 
+        tree->Branch((name+"Jet_trackSip2dSigAboveCharm_0").c_str(),      Jet_trackSip2dSigAboveCharm_0      ,(name+"Jet_trackSip2dSigAboveCharm_0["+name+"nJet]/F").c_str()             );
+        tree->Branch((name+"Jet_trackSip2dSigAboveCharm_1").c_str(),      Jet_trackSip2dSigAboveCharm_1      ,(name+"Jet_trackSip2dSigAboveCharm_1["+name+"nJet]/F").c_str()             );
+        tree->Branch((name+"Jet_trackSip2dSigAboveBottom_0").c_str(),     Jet_trackSip2dSigAboveBottom_0     ,(name+"Jet_trackSip2dSigAboveBottom_0["+name+"nJet]/F").c_str()            );
+        tree->Branch((name+"Jet_trackSip2dSigAboveBottom_1").c_str(),     Jet_trackSip2dSigAboveBottom_1     ,(name+"Jet_trackSip2dSigAboveBottom_1["+name+"nJet]/F").c_str()            );
         tree->Branch((name+"Jet_TrackDistance_TwoHighest3DSig").c_str(),  Jet_TrackDistance_TwoHighest3DSig  ,(name+"Jet_TrackDistance_TwoHighest3DSig["+name+"nJet]/F").c_str()         );
       }
     }
@@ -1060,6 +1068,10 @@ class JetInfoBranches {
         tree->SetBranchAddress((name+"Track_lengthTau").c_str()    ,Track_lengthTau   ) ;
         tree->SetBranchAddress((name+"Track_distTau").c_str()      ,Track_distTau     ) ;
 
+        tree->SetBranchAddress((name+"Jet_trackSip2dSigAboveCharm_0").c_str(),      Jet_trackSip2dSigAboveCharm_0      );
+        tree->SetBranchAddress((name+"Jet_trackSip2dSigAboveCharm_1").c_str(),      Jet_trackSip2dSigAboveCharm_1      );
+        tree->SetBranchAddress((name+"Jet_trackSip2dSigAboveBottom_0").c_str(),     Jet_trackSip2dSigAboveBottom_0     );
+        tree->SetBranchAddress((name+"Jet_trackSip2dSigAboveBottom_1").c_str(),     Jet_trackSip2dSigAboveBottom_1     );
         tree->SetBranchAddress((name+"Jet_TrackDistance_TwoHighest3DSig").c_str(),  Jet_TrackDistance_TwoHighest3DSig  );
       }
     }

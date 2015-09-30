@@ -963,6 +963,10 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
       }
     }
     reco::TrackKinematics allKinematics;
+    JetInfo[iJetColl].Jet_trackSip2dSigAboveCharm_0[JetInfo[iJetColl].nJet]  = -19.;
+    JetInfo[iJetColl].Jet_trackSip2dSigAboveCharm_1[JetInfo[iJetColl].nJet]  = -19.;
+    JetInfo[iJetColl].Jet_trackSip2dSigAboveBottom_0[JetInfo[iJetColl].nJet] = -19.;
+    JetInfo[iJetColl].Jet_trackSip2dSigAboveBottom_1[JetInfo[iJetColl].nJet] = -19.;
     JetInfo[iJetColl].Jet_TrackDistance_TwoHighest3DSig[JetInfo[iJetColl].nJet] = -0.09;
 
     if ( produceJetTrackTree_ )
@@ -1113,22 +1117,59 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
         ++JetInfo[iJetColl].nTrack;
       } //// end loop on tracks
 
-      if ( trackSize>1 && runFatJets_ && iJetColl == 0 )
+      if ( runFatJets_ && iJetColl == 0 )
       {
-        std::vector<size_t> indices = ipTagInfo->sortedIndexes(reco::btag::IP3DSig);
+        if ( trackSize>1 )
+        {
+          std::vector<size_t> indices = ipTagInfo->sortedIndexes(reco::btag::IP3DSig);
 
-        const TrackRef ptrackRef_0 = selectedTracks[indices[0]];
-        const TrackRef ptrackRef_1 = selectedTracks[indices[1]];
-        const reco::Track * ptrackPtr_0 = reco::btag::toTrack(ptrackRef_0);
-        const reco::Track * ptrackPtr_1 = reco::btag::toTrack(ptrackRef_1);
-        const reco::Track & ptrack_0 = *ptrackPtr_0;
-        const reco::Track & ptrack_1 = *ptrackPtr_1;
-        reco::TransientTrack transientTrack_0 = trackBuilder->build(ptrack_0);
-        reco::TransientTrack transientTrack_1 = trackBuilder->build(ptrack_1);
+          const TrackRef ptrackRef_0 = selectedTracks[indices[0]];
+          const TrackRef ptrackRef_1 = selectedTracks[indices[1]];
+          const reco::Track * ptrackPtr_0 = reco::btag::toTrack(ptrackRef_0);
+          const reco::Track * ptrackPtr_1 = reco::btag::toTrack(ptrackRef_1);
+          const reco::Track & ptrack_0 = *ptrackPtr_0;
+          const reco::Track & ptrack_1 = *ptrackPtr_1;
+          reco::TransientTrack transientTrack_0 = trackBuilder->build(ptrack_0);
+          reco::TransientTrack transientTrack_1 = trackBuilder->build(ptrack_1);
 
-        TwoTrackMinimumDistance dist;
-        if ( dist.calculate( transientTrack_0.impactPointState(), transientTrack_1.impactPointState()) )
-          JetInfo[iJetColl].Jet_TrackDistance_TwoHighest3DSig[JetInfo[iJetColl].nJet] = dist.distance();
+          TwoTrackMinimumDistance dist;
+          if ( dist.calculate( transientTrack_0.impactPointState(), transientTrack_1.impactPointState()) )
+            JetInfo[iJetColl].Jet_TrackDistance_TwoHighest3DSig[JetInfo[iJetColl].nJet] = dist.distance();
+        }
+
+
+        const std::vector<reco::btag::TrackIPData> & ipData = ipTagInfo->impactParameterData();
+        std::vector<size_t> indices = ipTagInfo->sortedIndexes(reco::btag::IP2DSig);
+        bool charmThreshSet = false;
+
+        reco::TrackKinematics kin;
+        for (size_t i =0; i<indices.size(); ++i)
+        {
+          size_t idx = indices[i];
+          const reco::btag::TrackIPData & data = ipData[idx];
+          const TrackRef ptrackRef = selectedTracks[idx];
+          const reco::Track * ptrackPtr = reco::btag::toTrack(ptrackRef);
+          const reco::Track & track = (*ptrackPtr);
+
+          kin.add(track);
+
+          if ( kin.vectorSum().M() > 1.5 // charm cut
+               && !charmThreshSet )
+          {
+            JetInfo[iJetColl].Jet_trackSip2dSigAboveCharm_0[JetInfo[iJetColl].nJet] = data.ip2d.significance();
+            if ( (i+1)<indices.size() ) JetInfo[iJetColl].Jet_trackSip2dSigAboveCharm_1[JetInfo[iJetColl].nJet] = (ipData[indices[i+1]]).ip2d.significance();
+
+            charmThreshSet = true;
+          }
+
+          if ( kin.vectorSum().M() > 5.2 ) // bottom cut
+          {
+            JetInfo[iJetColl].Jet_trackSip2dSigAboveBottom_0[JetInfo[iJetColl].nJet] = data.ip2d.significance();
+            if ( (i+1)<indices.size() ) JetInfo[iJetColl].Jet_trackSip2dSigAboveBottom_1[JetInfo[iJetColl].nJet] = (ipData[indices[i+1]]).ip2d.significance();
+
+            break;
+          }
+        }
       }
     }
 
