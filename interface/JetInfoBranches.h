@@ -94,6 +94,10 @@ class JetInfoBranches {
     float Jet_trackSip3dSig_2[nMaxJets_];
     float Jet_trackSip3dSig_1[nMaxJets_];
     float Jet_trackSip3dSig_0[nMaxJets_];
+    float Jet_trackSipdSig_1_0[nMaxJets_];
+    float Jet_trackSipdSig_0_0[nMaxJets_];
+    float Jet_trackSipdSig_1_1[nMaxJets_];
+    float Jet_trackSipdSig_0_1[nMaxJets_];
     float Jet_trackSip2dSigAboveCharm_0[nMaxJets_];
     float Jet_trackSip2dSigAboveCharm_1[nMaxJets_];
     float Jet_trackSip2dSigAboveBottom_0[nMaxJets_];
@@ -155,6 +159,9 @@ class JetInfoBranches {
     float Track_p[nMaxTrk_];
     float Track_pt[nMaxTrk_];
     float Track_eta[nMaxTrk_];
+    float Track_px[nMaxTrk_];
+    float Track_py[nMaxTrk_];
+    float Track_pz[nMaxTrk_];
     float Track_phi[nMaxTrk_];
     float Track_chi2[nMaxTrk_];
     int   Track_charge[nMaxTrk_];
