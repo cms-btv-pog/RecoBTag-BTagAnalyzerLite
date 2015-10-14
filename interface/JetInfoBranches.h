@@ -661,6 +661,11 @@ class JetInfoBranches {
       tree->Branch((name+"Jet_trackSip3dSig_2").c_str(),          Jet_trackSip3dSig_2          ,(name+"Jet_trackSip3dSig_2["+name+"nJet]/F").c_str()         );
       tree->Branch((name+"Jet_trackSip3dSig_1").c_str(),          Jet_trackSip3dSig_1          ,(name+"Jet_trackSip3dSig_1["+name+"nJet]/F").c_str()         );
       tree->Branch((name+"Jet_trackSip3dSig_0").c_str(),          Jet_trackSip3dSig_0          ,(name+"Jet_trackSip3dSig_0["+name+"nJet]/F").c_str()         );
+      tree->Branch((name+"Jet_trackSipdSig_1_0").c_str(),          Jet_trackSipdSig_1_0          ,(name+"Jet_trackSipdSig_1_0["+name+"nJet]/F").c_str()         );
+      tree->Branch((name+"Jet_trackSipdSig_0_0").c_str(),          Jet_trackSipdSig_0_0          ,(name+"Jet_trackSipdSig_0_0["+name+"nJet]/F").c_str()         );
+      tree->Branch((name+"Jet_trackSipdSig_1_1").c_str(),          Jet_trackSipdSig_1_1          ,(name+"Jet_trackSipdSig_1_1["+name+"nJet]/F").c_str()         );
+      tree->Branch((name+"Jet_trackSipdSig_0_1").c_str(),          Jet_trackSipdSig_0_1          ,(name+"Jet_trackSipdSig_0_1["+name+"nJet]/F").c_str()         );
+
       tree->Branch((name+"Jet_trackEtaRel_2").c_str(),          Jet_trackEtaRel_2          ,(name+"Jet_trackEtaRel_2["+name+"nJet]/F").c_str()         );
       tree->Branch((name+"Jet_trackEtaRel_1").c_str(),          Jet_trackEtaRel_1          ,(name+"Jet_trackEtaRel_1["+name+"nJet]/F").c_str()         );
       tree->Branch((name+"Jet_trackEtaRel_0").c_str(),          Jet_trackEtaRel_0          ,(name+"Jet_trackEtaRel_0["+name+"nJet]/F").c_str()         );
@@ -1036,6 +1041,11 @@ class JetInfoBranches {
       tree->SetBranchAddress((name+"Jet_trackSip3dSig_2").c_str(),          Jet_trackSip3dSig_2);
       tree->SetBranchAddress((name+"Jet_trackSip3dSig_1").c_str(),          Jet_trackSip3dSig_1);
       tree->SetBranchAddress((name+"Jet_trackSip3dSig_0").c_str(),          Jet_trackSip3dSig_0);
+      tree->SetBranchAddress((name+"Jet_trackSipdSig_1_0").c_str(),          Jet_trackSipdSig_1_0);
+      tree->SetBranchAddress((name+"Jet_trackSipdSig_0_0").c_str(),          Jet_trackSipdSig_0_0);
+      tree->SetBranchAddress((name+"Jet_trackSipdSig_1_1").c_str(),          Jet_trackSipdSig_1_1);
+      tree->SetBranchAddress((name+"Jet_trackSipdSig_0_1").c_str(),          Jet_trackSipdSig_0_1);
+
       tree->SetBranchAddress((name+"Jet_trackEtaRel_2").c_str(),          Jet_trackEtaRel_2);
       tree->SetBranchAddress((name+"Jet_trackEtaRel_1").c_str(),          Jet_trackEtaRel_1);
       tree->SetBranchAddress((name+"Jet_trackEtaRel_0").c_str(),          Jet_trackEtaRel_0);
