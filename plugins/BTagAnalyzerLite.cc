@@ -1516,7 +1516,7 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
       double trackSip3dSig_3, trackSip3dSig_0, trackSip3dSig_1,trackSip3dSig_2, trackEtaRel_0,trackEtaRel_1,trackEtaRel_2;
       double trackSipdSig_1_0 , trackSipdSig_1_1;
       double trackSipdSig_0_0,trackSipdSig_0_1 ;
-      std::vector<float> IP3Ds, etaRels, IP2Ds_1, IP2Ds_2;
+      std::vector<float> IP3Ds, etaRels, IP3Ds_1, IP3Ds_2;
       int contTrk=0;
       for (int iTrk = 0; iTrk < JetInfo[iJetColl].Jet_ntracks[JetInfo[iJetColl].nJet]; ++iTrk){
                   if(JetInfo[iJetColl].Track_isfromV0[iTrk]!=1 && JetInfo[iJetColl].Track_lengthTau[iTrk]<5. && JetInfo[iJetColl].Track_distTau[iTrk]<0.07) {
@@ -1529,12 +1529,12 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
                                                                 if (reco::deltaR2(track_,currentAxes[0]) < reco::deltaR2(track_,currentAxes[1]))
                                                                  {
 
-                                                                      IP2Ds_1.push_back(JetInfo[iJetColl].Track_IPsig[iTrk]);
+                                                                      IP3Ds_1.push_back(JetInfo[iJetColl].Track_IPsig[iTrk]);
                                                                 }
                                                                 else {
-                                                                        IP2Ds_2.push_back(JetInfo[iJetColl].Track_IPsig[iTrk]);
+                                                                        IP3Ds_2.push_back(JetInfo[iJetColl].Track_IPsig[iTrk]);
                                                                         }
-                                        }else IP2Ds_1.push_back(JetInfo[iJetColl].Track_IPsig[iTrk]);
+                                        }else IP3Ds_1.push_back(JetInfo[iJetColl].Track_IPsig[iTrk]);
 
 
 
@@ -1554,10 +1554,10 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
               
       std::sort( IP3Ds.begin(),IP3Ds.end(),std::greater<float>() );
       std::sort( etaRels.begin(),etaRels.end() ); //std::sort sorts in ascending order by default
-      std::sort( IP2Ds_1.begin(),IP2Ds_1.end(),std::greater<float>() );
-      std::sort( IP2Ds_2.begin(),IP2Ds_2.end(),std::greater<float>() );
-      int num_1 = IP2Ds_1.size();
-      int num_2 = IP2Ds_2.size();
+      std::sort( IP3Ds_1.begin(),IP3Ds_1.end(),std::greater<float>() );
+      std::sort( IP3Ds_2.begin(),IP3Ds_2.end(),std::greater<float>() );
+      int num_1 = IP3Ds_1.size();
+      int num_2 = IP3Ds_2.size();
 
 
       switch(contTrk){
@@ -1649,29 +1649,29 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 
                                      case 1:
 
-                                             trackSipdSig_0_0 = IP2Ds_1.at(0);
+                                             trackSipdSig_0_0 = IP3Ds_1.at(0);
                                              trackSipdSig_0_1 = dummyTrack;
 
                                              break;
 
                                      case 2:
 
-                                             trackSipdSig_0_0 = IP2Ds_1.at(0);
-                                             trackSipdSig_0_1 = IP2Ds_1.at(1);
+                                             trackSipdSig_0_0 = IP3Ds_1.at(0);
+                                             trackSipdSig_0_1 = IP3Ds_1.at(1);
 
                                              break;
 
                                      case 3:
 
-                                             trackSipdSig_0_0 = IP2Ds_1.at(0);
-                                             trackSipdSig_0_1 = IP2Ds_1.at(1);
+                                             trackSipdSig_0_0 = IP3Ds_1.at(0);
+                                             trackSipdSig_0_1 = IP3Ds_1.at(1);
 
                                              break;
 
                                      default:
 
-                                             trackSipdSig_0_0 = IP2Ds_1.at(0);
-                                             trackSipdSig_0_1 = IP2Ds_1.at(1);
+                                             trackSipdSig_0_0 = IP3Ds_1.at(0);
+                                             trackSipdSig_0_1 = IP3Ds_1.at(1);
 
                              }
 
@@ -1684,26 +1684,26 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
                                              break;
 
                                      case 1:
-                                             trackSipdSig_1_0 = IP2Ds_2.at(0);
+                                             trackSipdSig_1_0 = IP3Ds_2.at(0);
                                              trackSipdSig_1_1 = dummyTrack;
 
                                              break;
 
                                      case 2:
-                                             trackSipdSig_1_0 = IP2Ds_2.at(0);
-                                             trackSipdSig_1_1 = IP2Ds_2.at(1);
+                                             trackSipdSig_1_0 = IP3Ds_2.at(0);
+                                             trackSipdSig_1_1 = IP3Ds_2.at(1);
 
                                              break;
 
                                      case 3:
-                                             trackSipdSig_1_0 = IP2Ds_2.at(0);
-                                             trackSipdSig_1_1 = IP2Ds_2.at(1);
+                                             trackSipdSig_1_0 = IP3Ds_2.at(0);
+                                             trackSipdSig_1_1 = IP3Ds_2.at(1);
                                              break;
 
                                      default:
 
-                                             trackSipdSig_1_0 = IP2Ds_2.at(0);
-                                             trackSipdSig_1_1 = IP2Ds_2.at(1);
+                                             trackSipdSig_1_0 = IP3Ds_2.at(0);
+                                             trackSipdSig_1_1 = IP3Ds_2.at(1);
 
                              }		
 
@@ -1972,7 +1972,6 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 
 
     float z_ratio = -3. ,SV_mass_0 = -3., SV_EnergyRatio_0 = -3., SV_EnergyRatio_1 = -3.;
-    int nSVV=VTXmap.size();	
     float BDTG_SV = -1.;
     if ( runFatJets_ && iJetColl == 0 )
     {
@@ -2074,35 +2073,25 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
       variables["tau_vertexEnergyRatio_1"]= tau_vertexEnergyRatio_1;
       variables["tau_flightDistance2dSig_1"]= tau_flightDistance2dSig_1;
       variables["jetNTracks"]= JetInfo[iJetColl].TagVarCSV_jetNTracks[JetInfo[iJetColl].nJet];
-      variables["nSV"] = nSVV;
+      variables["nSV"] = JetInfo[iJetColl].nSV;
 
-      std::cout<<variables["z_ratio"]<<std::endl; 
-std::cout<<variables["trackSipdSig_3"]<<std::endl; 
-std::cout<<variables["trackSipdSig_2"]<<std::endl; 
-std::cout<<variables["trackSipdSig_1"]<<std::endl; 
-std::cout<<variables["trackSipdSig_0"]<<std::endl;
-std::cout<<variables["trackSipdSig_1_0"]<<std::endl;
-std::cout<<variables["trackSipdSig_0_0"]<<std::endl; 
-std::cout<<variables["trackSipdSig_1_1"]<<std::endl;
-std::cout<<variables["trackSipdSig_0_1"]<<std::endl; 
-std::cout<<variables["trackSip2dSigAboveCharm_0"]<<std::endl;
-std::cout<<variables["trackSip2dSigAboveBottom_0"]<<std::endl;
-std::cout<<variables["trackSip2dSigAboveBottom_1"]<<std::endl;
-std::cout<<variables["tau1_trackEtaRel_0"]<<std::endl; 
-std::cout<<variables["tau1_trackEtaRel_1"]<<std::endl; 
-std::cout<<variables["tau1_trackEtaRel_2"]<<std::endl; 
-std::cout<<variables["tau0_trackEtaRel_0"]<<std::endl; 
-std::cout<<variables["tau0_trackEtaRel_1"]<<std::endl;
-std::cout<<variables["tau0_trackEtaRel_2"]<<std::endl; 
-std::cout<<variables["tau_vertexMass_0"]<<std::endl;
-std::cout<<variables["tau_vertexEnergyRatio_0"]<<std::endl;
-std::cout<<variables["tau_vertexDeltaR_0"]<<std::endl;
-std::cout<<variables["tau_flightDistance2dSig_0"]<<std::endl;
-std::cout<<variables["tau_vertexMass_corrected_1"]<<std::endl;
-std::cout<<variables["tau_vertexEnergyRatio_1"]<<std::endl;
-std::cout<<variables["tau_flightDistance2dSig_1"]<<std::endl;
-std::cout<<variables["jetNTracks"]<<std::endl;
-std::cout<<variables["nSV"]<<std::endl; 
+      JetInfo[iJetColl].Jet_tau2_trackEtaRel_2[JetInfo[iJetColl].nJet] = tau1_trackEtaRel_2;
+      JetInfo[iJetColl].Jet_tau2_trackEtaRel_1[JetInfo[iJetColl].nJet] = tau1_trackEtaRel_1;
+      JetInfo[iJetColl].Jet_tau2_trackEtaRel_0[JetInfo[iJetColl].nJet] = tau1_trackEtaRel_0;
+      JetInfo[iJetColl].Jet_tau1_trackEtaRel_2[JetInfo[iJetColl].nJet] = tau0_trackEtaRel_2;
+      JetInfo[iJetColl].Jet_tau1_trackEtaRel_1[JetInfo[iJetColl].nJet] = tau0_trackEtaRel_1;
+      JetInfo[iJetColl].Jet_tau1_trackEtaRel_0[JetInfo[iJetColl].nJet] = tau0_trackEtaRel_0;
+      JetInfo[iJetColl].Jet_tau1_vertexEnergyRatio[JetInfo[iJetColl].nJet] =tau_vertexEnergyRatio_0;
+      JetInfo[iJetColl].Jet_tau2_vertexEnergyRatio[JetInfo[iJetColl].nJet] = tau_vertexEnergyRatio_1;
+      JetInfo[iJetColl].Jet_tau1_vertexMass[JetInfo[iJetColl].nJet] = tau_vertexMass_0;
+      JetInfo[iJetColl].Jet_tau2_vertexMass_corrected[JetInfo[iJetColl].nJet] = tau_vertexMass_corrected_1;
+      JetInfo[iJetColl].Jet_tau1_flightDistance2dSig[JetInfo[iJetColl].nJet] = tau_flightDistance2dSig_0;
+      JetInfo[iJetColl].Jet_tau2_flightDistance2dSig[JetInfo[iJetColl].nJet] = tau_flightDistance2dSig_1;
+      JetInfo[iJetColl].Jet_tau1_vertexDeltaR[JetInfo[iJetColl].nJet]  = tau_vertexDeltaR_0;
+
+      
+	
+
 
       BDTG_SV = evaluator_SV_->evaluate(variables);
       //float tau2 = JetInfo[iJetColl].Jet_tau2[JetInfo[iJetColl].nJet];
