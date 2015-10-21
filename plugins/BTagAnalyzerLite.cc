@@ -1610,20 +1610,6 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 
                       break;
 
-              case 2:
-
-                      tau1_trackSip3dSig_0 = IP3Ds_1.at(0);
-                      tau1_trackSip3dSig_1 = IP3Ds_1.at(1);
-
-                      break;
-
-              case 3:
-
-                      tau1_trackSip3dSig_0 = IP3Ds_1.at(0);
-                      tau1_trackSip3dSig_1 = IP3Ds_1.at(1);
-
-                      break;
-
               default:
 
                       tau1_trackSip3dSig_0 = IP3Ds_1.at(0);
@@ -1639,24 +1625,13 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
 
                        break;
 
-               case 1:
+              case 1:
                        tau2_trackSip3dSig_0 = IP3Ds_2.at(0);
                        tau2_trackSip3dSig_1 = dummyTrack;
 
                        break;
 
-               case 2:
-                       tau2_trackSip3dSig_0 = IP3Ds_2.at(0);
-                       tau2_trackSip3dSig_1 = IP3Ds_2.at(1);
-
-                       break;
-
-               case 3:
-                       tau2_trackSip3dSig_0 = IP3Ds_2.at(0);
-                       tau2_trackSip3dSig_1 = IP3Ds_2.at(1);
-                       break;
-
-               default:
+              default:
 
                        tau2_trackSip3dSig_0 = IP3Ds_2.at(0);
                        tau2_trackSip3dSig_1 = IP3Ds_2.at(1);
