@@ -1477,7 +1477,7 @@ void BTagAnalyzerLiteT<IPTI,VTX>::processJets(const edm::Handle<PatJetCollection
       float tau1_trackSip3dSig_0, tau1_trackSip3dSig_1;
       std::vector<float> IP3Ds, etaRels, IP3Ds_1, IP3Ds_2;
       int contTrk=0;
-      for (int iTrk = 0; iTrk < JetInfo[iJetColl].Jet_ntracks[JetInfo[iJetColl].nJet]; ++iTrk)
+      for (int iTrk = JetInfo[iJetColl].Jet_nFirstTrack[JetInfo[iJetColl].nJet]; iTrk < JetInfo[iJetColl].Jet_nLastTrack[JetInfo[iJetColl].nJet]; ++iTrk)
       {
         if(JetInfo[iJetColl].Track_isfromV0[iTrk]==0 &&
            JetInfo[iJetColl].Track_lengthTau[iTrk]<5. &&
