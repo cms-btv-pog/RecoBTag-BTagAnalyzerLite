@@ -273,15 +273,15 @@ process.MessageLogger.cerr.default.limit = 10
 ## Input files
 process.source = cms.Source("PoolSource",
     fileNames = cms.untracked.vstring(
-        # /RelValProdTTbar_13/CMSSW_7_4_0_pre7-MCRUN2_74_V7-v1/AODSIM
-        '/store/relval/CMSSW_7_4_0_pre7/RelValProdTTbar_13/AODSIM/MCRUN2_74_V7-v1/00000/22E552FD-23B7-E411-B680-002618943911.root'
+        # /TTJets_TuneCUETP8M1_13TeV-madgraphMLM-pythia8/RunIISpring15DR74-Asympt25ns_MCRUN2_74_V9-v2/AODSIM
+        '/store/mc/RunIISpring15DR74/TTJets_TuneCUETP8M1_13TeV-madgraphMLM-pythia8/AODSIM/Asympt25ns_MCRUN2_74_V9-v2/00000/1041602E-9508-E511-8094-003048FFD7BE.root'
     )
 )
 
 if options.miniAOD:
     process.source.fileNames = [
-        # /RelValTTbar_13/CMSSW_7_4_0_pre7-MCRUN2_74_V7-v1/MINIAODSIM
-        '/store/relval/CMSSW_7_4_0_pre7/RelValTTbar_13/MINIAODSIM/MCRUN2_74_V7-v1/00000/B62A3865-39B7-E411-B76A-002618943880.root'
+        # /TTJets_TuneCUETP8M1_13TeV-madgraphMLM-pythia8/RunIISpring15DR74-Asympt25ns_MCRUN2_74_V9-v2/MINIAODSIM
+        '/store/mc/RunIISpring15DR74/TTJets_TuneCUETP8M1_13TeV-madgraphMLM-pythia8/MINIAODSIM/Asympt25ns_MCRUN2_74_V9-v2/00000/06B5178E-F008-E511-A2CF-00261894390B.root'
     ]
 
 if options.runOnData:
